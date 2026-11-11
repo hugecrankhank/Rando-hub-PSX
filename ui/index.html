@@ -65,15 +65,32 @@
         <div><span id="keyCount">0</span><small id="keyTotal">/0 key</small></div>
       </div>
       <div id="trackerGroups"></div>
+      <section class="map-section" id="mapSection" hidden>
+        <div class="map-head">
+          <h4>Castle map</h4>
+          <div class="seg">
+            <button class="seg-btn" id="mapCastle1" title="Show first castle (click again to follow your position)">1st</button>
+            <button class="seg-btn" id="mapCastle2" title="Show inverted castle (click again to follow your position)">2nd</button>
+          </div>
+        </div>
+        <canvas id="castleMap" width="512" height="416"></canvas>
+        <div class="map-legend">
+          <span><i style="background:#36d14a"></i>In logic</span>
+          <span><i style="background:#c23cc8"></i>Out of logic</span>
+          <span><i style="background:#9a9a9a"></i>Locked</span>
+        </div>
+        <div class="fine" id="mapStats"></div>
+        <div class="fine" id="mapPreset"></div>
+      </section>
       <details class="bosses">
         <summary>Bosses</summary>
         <div id="bossList"></div>
       </details>
       <div class="tracker-foot">
-        <label class="toggle"><input type="checkbox" id="autoTrack" checked> Auto-track relics from game memory</label>
+        <label class="toggle"><input type="checkbox" id="autoTrack" checked> Auto-track from game memory</label>
         <button class="btn small ghost" id="trackerReset">Clear tracker</button>
       </div>
-      <p class="fine">Click a tile to mark it yourself; right-click to clear. Key items (rings, Spike Breaker, Holy Glasses) are click-to-mark.</p>
+      <p class="fine">Relics and key items track automatically. Click a tile to mark it yourself; right-click to clear. Open the in-game map to see check markers drawn over it.</p>
     </div>
 
     <!-- SEEDS -->
@@ -138,6 +155,17 @@
         <button class="btn small" id="pickSeedsDir">Change…</button>
       </div>
       <div class="setting">
+        <div class="setting-head"><b>In-game map markers</b></div>
+        <label class="toggle"><input type="checkbox" id="mapOverlay" checked> Draw check markers over the game's map screen</label>
+        <p class="fine">If the markers sit slightly off the rooms on your map, nudge them here (in game pixels).</p>
+        <div class="calib">
+          <label>Left/right <input type="number" id="calib-dx" step="0.5" value="0"></label>
+          <label>Up/down <input type="number" id="calib-dy" step="0.5" value="0"></label>
+          <label>Scale <input type="number" id="calib-scale" step="0.01" min="0.5" max="2" value="1"></label>
+        </div>
+        <p class="fine">Map data and item icons: <a href="#" id="srtLink">SotnRandoTools</a> by TalicZealot (MIT).</p>
+      </div>
+      <div class="setting">
         <div class="setting-head"><b>Emulator files</b></div>
         <label class="toggle"><input type="radio" name="ejs" value="cache"> Download once, then play offline</label>
         <label class="toggle"><input type="radio" name="ejs" value="cdn"> Always fetch the latest from the EmulatorJS CDN</label>
@@ -166,6 +194,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="memory.js"></script>
+<script src="sotn-map.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

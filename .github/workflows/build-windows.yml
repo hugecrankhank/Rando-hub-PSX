@@ -32,11 +32,7 @@ jobs:
           cd vendor/sotn-randomizer
           node randomize --help || true
           ls presets || true
-          cd ../sotnrandotools && cat VERSION.txt && find . -maxdepth 2 | sort | head -80
-          node -e "const fs=require('fs');for(const f of fs.readdirSync('Extensions')){const e=JSON.parse(fs.readFileSync('Extensions/'+f));console.log('==',f,'extends='+e.extends,'small='+e.smallIndicators,'n='+(e.locations||[]).length);for(const l of (e.locations||[]))console.log(JSON.stringify(l))}" || true
-          node -e "const p=JSON.parse(require('fs').readFileSync('../sotn-randomizer/presets/safe.json'));console.log(Object.keys(p));console.log(JSON.stringify(p).slice(0,1500))" || true
-          node -e "const p=JSON.parse(require('fs').readFileSync('../sotn-randomizer/presets/sequence-breaker.json'));console.log(Object.keys(p));console.log(JSON.stringify(p.lockLocation||'').slice(0,600))" || true
-          file Images/* 2>/dev/null | head -20 || ls -la Images
+          cd ../sotnrandotools && cat VERSION.txt && ls Extensions Images
 
       - name: Run tests
         run: npm test

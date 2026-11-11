@@ -3,92 +3,436 @@
   "title": "Castlevania: Symphony of the Night",
   "region": "USA",
   "serial": "SLUS_000.67",
-  "bootExeAliases": ["SLUS_000.67", "SLUS_00067"],
+  "bootExeAliases": [
+    "SLUS_000.67",
+    "SLUS_00067"
+  ],
   "randomizer": {
     "name": "SotN Randomizer",
     "repoZip": "https://codeload.github.com/3snowp7im/SotN-Randomizer/zip/refs/heads/master",
     "vendorDir": "sotn-randomizer",
-    "fallbackPresets": ["safe", "casual", "speedrun", "adventure", "og", "nimble", "lycanthrope", "glitch", "scavenger", "empty-hand", "expedition", "warlock", "bat-master", "guarded-og", "gem-farmer", "third-castle", "rat-race", "magic-mirror", "boss-rush", "aperture"],
+    "fallbackPresets": [
+      "safe",
+      "casual",
+      "speedrun",
+      "adventure",
+      "og",
+      "nimble",
+      "lycanthrope",
+      "glitch",
+      "scavenger",
+      "empty-hand",
+      "expedition",
+      "warlock",
+      "bat-master",
+      "guarded-og",
+      "gem-farmer",
+      "third-castle",
+      "rat-race",
+      "magic-mirror",
+      "boss-rush",
+      "aperture"
+    ],
     "defaultPreset": "safe"
   },
   "memory": {
     "_note": "Offsets are into PS1 main RAM (KSEG0 0x80000000 = offset 0). Relic bytes: 0 = not found, bit0 = owned, bit1 = active/equipped.",
     "relicsOffset": "0x097964",
     "relicCount": 30,
-    "relicMaxValidValue": 3
+    "relicMaxValidValue": 3,
+    "_credits": "Addresses from SotnApi (MIT, (c) TalicZealot) - github.com/TalicZealot/SotnApi",
+    "statusBlockStart": "0x097964",
+    "statusBlockLength": "0x2B8",
+    "mapOpen": "0x0974A4",
+    "stageId": "0x0974A0",
+    "secondCastleMask": "0x20",
+    "roomsStart": "0x06BB74",
+    "roomsLength": "0x900",
+    "handQuantityStart": "0x09798A",
+    "slots": {
+      "rightHand": "0x097C00",
+      "leftHand": "0x097C04",
+      "helm": "0x097C08",
+      "armor": "0x097C0C",
+      "accessory1": "0x097C14",
+      "accessory2": "0x097C18"
+    },
+    "keyItems": [
+      {
+        "ability": 30,
+        "name": "Gold Ring",
+        "inventoryIndex": 241,
+        "slots": [
+          "accessory1",
+          "accessory2"
+        ],
+        "value": 72
+      },
+      {
+        "ability": 31,
+        "name": "Silver Ring",
+        "inventoryIndex": 242,
+        "slots": [
+          "accessory1",
+          "accessory2"
+        ],
+        "value": 73
+      },
+      {
+        "ability": 32,
+        "name": "Spike Breaker",
+        "inventoryIndex": 183,
+        "slots": [
+          "armor"
+        ],
+        "value": 14
+      },
+      {
+        "ability": 33,
+        "name": "Holy Glasses",
+        "inventoryIndex": 203,
+        "slots": [
+          "helm"
+        ],
+        "value": 34
+      }
+    ],
+    "thrustSwords": {
+      "ability": 34,
+      "inventoryIndexes": [
+        95,
+        98,
+        101,
+        103,
+        107
+      ],
+      "slots": [
+        "rightHand",
+        "leftHand"
+      ]
+    }
   },
   "tracker": {
     "groups": [
       {
         "name": "Movement",
         "items": [
-          { "id": "soul-of-bat",  "label": "Soul of Bat",   "short": "BAT",  "relic": 0,  "key": true },
-          { "id": "form-of-mist", "label": "Form of Mist",  "short": "MIST", "relic": 7,  "key": true },
-          { "id": "power-of-mist","label": "Power of Mist", "short": "PMST", "relic": 8,  "key": true },
-          { "id": "gravity-boots","label": "Gravity Boots", "short": "GRAV", "relic": 12, "key": true },
-          { "id": "leap-stone",   "label": "Leap Stone",    "short": "LEAP", "relic": 13, "key": true },
-          { "id": "jewel-of-open","label": "Jewel of Open", "short": "JWL",  "relic": 16, "key": true },
-          { "id": "merman-statue","label": "Merman Statue", "short": "MER",  "relic": 17, "key": true },
-          { "id": "soul-of-wolf", "label": "Soul of Wolf",  "short": "WOLF", "relic": 4,  "key": true }
+          {
+            "id": "soul-of-bat",
+            "label": "Soul of Bat",
+            "short": "BAT",
+            "relic": 0,
+            "key": true,
+            "icon": 0
+          },
+          {
+            "id": "form-of-mist",
+            "label": "Form of Mist",
+            "short": "MIST",
+            "relic": 7,
+            "key": true,
+            "icon": 7
+          },
+          {
+            "id": "power-of-mist",
+            "label": "Power of Mist",
+            "short": "PMST",
+            "relic": 8,
+            "key": true,
+            "icon": 8
+          },
+          {
+            "id": "gravity-boots",
+            "label": "Gravity Boots",
+            "short": "GRAV",
+            "relic": 12,
+            "key": true,
+            "icon": 12
+          },
+          {
+            "id": "leap-stone",
+            "label": "Leap Stone",
+            "short": "LEAP",
+            "relic": 13,
+            "key": true,
+            "icon": 13
+          },
+          {
+            "id": "jewel-of-open",
+            "label": "Jewel of Open",
+            "short": "JWL",
+            "relic": 16,
+            "key": true,
+            "icon": 16
+          },
+          {
+            "id": "merman-statue",
+            "label": "Merman Statue",
+            "short": "MER",
+            "relic": 17,
+            "key": true,
+            "icon": 17
+          },
+          {
+            "id": "soul-of-wolf",
+            "label": "Soul of Wolf",
+            "short": "WOLF",
+            "relic": 4,
+            "key": true,
+            "icon": 4
+          }
         ]
       },
       {
         "name": "Bat / Wolf / Mist",
         "items": [
-          { "id": "fire-of-bat",   "label": "Fire of Bat",   "short": "FIRE", "relic": 1 },
-          { "id": "echo-of-bat",   "label": "Echo of Bat",   "short": "ECHO", "relic": 2, "key": true },
-          { "id": "force-of-echo", "label": "Force of Echo", "short": "FECH", "relic": 3 },
-          { "id": "power-of-wolf", "label": "Power of Wolf", "short": "PWLF", "relic": 5 },
-          { "id": "skill-of-wolf", "label": "Skill of Wolf", "short": "SWLF", "relic": 6 },
-          { "id": "gas-cloud",     "label": "Gas Cloud",     "short": "GAS",  "relic": 9 }
+          {
+            "id": "fire-of-bat",
+            "label": "Fire of Bat",
+            "short": "FIRE",
+            "relic": 1,
+            "icon": 1
+          },
+          {
+            "id": "echo-of-bat",
+            "label": "Echo of Bat",
+            "short": "ECHO",
+            "relic": 2,
+            "key": true,
+            "icon": 2
+          },
+          {
+            "id": "force-of-echo",
+            "label": "Force of Echo",
+            "short": "FECH",
+            "relic": 3,
+            "icon": 3
+          },
+          {
+            "id": "power-of-wolf",
+            "label": "Power of Wolf",
+            "short": "PWLF",
+            "relic": 5,
+            "icon": 5
+          },
+          {
+            "id": "skill-of-wolf",
+            "label": "Skill of Wolf",
+            "short": "SWLF",
+            "relic": 6,
+            "icon": 6
+          },
+          {
+            "id": "gas-cloud",
+            "label": "Gas Cloud",
+            "short": "GAS",
+            "relic": 9,
+            "icon": 9
+          }
         ]
       },
       {
         "name": "Utility",
         "items": [
-          { "id": "cube-of-zoe",   "label": "Cube of Zoe",   "short": "ZOE",  "relic": 10 },
-          { "id": "spirit-orb",    "label": "Spirit Orb",    "short": "ORB",  "relic": 11 },
-          { "id": "holy-symbol",   "label": "Holy Symbol",   "short": "HOLY", "relic": 14, "key": true },
-          { "id": "faerie-scroll", "label": "Faerie Scroll", "short": "SCRL", "relic": 15 }
+          {
+            "id": "cube-of-zoe",
+            "label": "Cube of Zoe",
+            "short": "ZOE",
+            "relic": 10,
+            "icon": 10
+          },
+          {
+            "id": "spirit-orb",
+            "label": "Spirit Orb",
+            "short": "ORB",
+            "relic": 11,
+            "icon": 11
+          },
+          {
+            "id": "holy-symbol",
+            "label": "Holy Symbol",
+            "short": "HOLY",
+            "relic": 14,
+            "key": true,
+            "icon": 14
+          },
+          {
+            "id": "faerie-scroll",
+            "label": "Faerie Scroll",
+            "short": "SCRL",
+            "relic": 15,
+            "icon": 15
+          }
         ]
       },
       {
         "name": "Familiar Cards",
         "items": [
-          { "id": "bat-card",      "label": "Bat Card",      "short": "BATC", "relic": 18 },
-          { "id": "ghost-card",    "label": "Ghost Card",    "short": "GHST", "relic": 19 },
-          { "id": "faerie-card",   "label": "Faerie Card",   "short": "FAER", "relic": 20 },
-          { "id": "demon-card",    "label": "Demon Card",    "short": "DEMN", "relic": 21 },
-          { "id": "sword-card",    "label": "Sword Card",    "short": "SWRD", "relic": 22 },
-          { "id": "sprite-card",   "label": "Sprite Card",   "short": "SPRT", "relic": 23 },
-          { "id": "nosedevil-card","label": "Nose Devil Card","short": "NOSE", "relic": 24 }
+          {
+            "id": "bat-card",
+            "label": "Bat Card",
+            "short": "BATC",
+            "relic": 18,
+            "icon": 18
+          },
+          {
+            "id": "ghost-card",
+            "label": "Ghost Card",
+            "short": "GHST",
+            "relic": 19,
+            "icon": 19
+          },
+          {
+            "id": "faerie-card",
+            "label": "Faerie Card",
+            "short": "FAER",
+            "relic": 20,
+            "icon": 20
+          },
+          {
+            "id": "demon-card",
+            "label": "Demon Card",
+            "short": "DEMN",
+            "relic": 21,
+            "icon": 21
+          },
+          {
+            "id": "sword-card",
+            "label": "Sword Card",
+            "short": "SWRD",
+            "relic": 22,
+            "icon": 22
+          },
+          {
+            "id": "sprite-card",
+            "label": "Sprite Card",
+            "short": "SPRT",
+            "relic": 23,
+            "icon": 23
+          },
+          {
+            "id": "nosedevil-card",
+            "label": "Nose Devil Card",
+            "short": "NOSE",
+            "relic": 24,
+            "icon": 24
+          }
         ]
       },
       {
         "name": "Vlad Relics",
         "items": [
-          { "id": "heart-of-vlad", "label": "Heart of Vlad", "short": "HRT",  "relic": 25, "vlad": true },
-          { "id": "tooth-of-vlad", "label": "Tooth of Vlad", "short": "TTH",  "relic": 26, "vlad": true },
-          { "id": "rib-of-vlad",   "label": "Rib of Vlad",   "short": "RIB",  "relic": 27, "vlad": true },
-          { "id": "ring-of-vlad",  "label": "Ring of Vlad",  "short": "RNG",  "relic": 28, "vlad": true },
-          { "id": "eye-of-vlad",   "label": "Eye of Vlad",   "short": "EYE",  "relic": 29, "vlad": true }
+          {
+            "id": "heart-of-vlad",
+            "label": "Heart of Vlad",
+            "short": "HRT",
+            "relic": 25,
+            "vlad": true,
+            "icon": 25
+          },
+          {
+            "id": "tooth-of-vlad",
+            "label": "Tooth of Vlad",
+            "short": "TTH",
+            "relic": 26,
+            "vlad": true,
+            "icon": 26
+          },
+          {
+            "id": "rib-of-vlad",
+            "label": "Rib of Vlad",
+            "short": "RIB",
+            "relic": 27,
+            "vlad": true,
+            "icon": 27
+          },
+          {
+            "id": "ring-of-vlad",
+            "label": "Ring of Vlad",
+            "short": "RNG",
+            "relic": 28,
+            "vlad": true,
+            "icon": 28
+          },
+          {
+            "id": "eye-of-vlad",
+            "label": "Eye of Vlad",
+            "short": "EYE",
+            "relic": 29,
+            "vlad": true,
+            "icon": 29
+          }
         ]
       },
       {
-        "name": "Key Items (click to mark)",
+        "name": "Key Items",
         "items": [
-          { "id": "gold-ring",     "label": "Gold Ring",     "short": "GOLD", "key": true },
-          { "id": "silver-ring",   "label": "Silver Ring",   "short": "SILV", "key": true },
-          { "id": "spike-breaker", "label": "Spike Breaker", "short": "SPKB", "key": true },
-          { "id": "holy-glasses",  "label": "Holy Glasses",  "short": "GLAS", "key": true }
+          {
+            "id": "gold-ring",
+            "label": "Gold Ring",
+            "short": "GOLD",
+            "key": true,
+            "ability": 30,
+            "icon": 30
+          },
+          {
+            "id": "silver-ring",
+            "label": "Silver Ring",
+            "short": "SILV",
+            "key": true,
+            "ability": 31,
+            "icon": 31
+          },
+          {
+            "id": "spike-breaker",
+            "label": "Spike Breaker",
+            "short": "SPKB",
+            "key": true,
+            "ability": 32,
+            "icon": 32
+          },
+          {
+            "id": "holy-glasses",
+            "label": "Holy Glasses",
+            "short": "GLAS",
+            "key": true,
+            "ability": 33,
+            "icon": 33
+          },
+          {
+            "id": "thrust-sword",
+            "label": "Thrust Sword",
+            "short": "THRS",
+            "ability": 34,
+            "icon": 34
+          }
         ]
       }
     ],
     "bosses": [
-      "Slogra & Gaibon", "Olrox", "Granfaloon", "Scylla", "Doppleganger10", "Hippogryph", "Minotaur & Werewolf",
-      "Lesser Demon", "Karasuman", "Succubus", "Cerberus", "Richter",
-      "Akmodan II", "Medusa", "The Creature", "Death", "Darkwing Bat", "Galamoth",
-      "Fake Trevor/Grant/Sypha", "Beelzebub", "Doppleganger40", "Shaft", "Dracula"
+      "Slogra & Gaibon",
+      "Olrox",
+      "Granfaloon",
+      "Scylla",
+      "Doppleganger10",
+      "Hippogryph",
+      "Minotaur & Werewolf",
+      "Lesser Demon",
+      "Karasuman",
+      "Succubus",
+      "Cerberus",
+      "Richter",
+      "Akmodan II",
+      "Medusa",
+      "The Creature",
+      "Death",
+      "Darkwing Bat",
+      "Galamoth",
+      "Fake Trevor/Grant/Sypha",
+      "Beelzebub",
+      "Doppleganger40",
+      "Shaft",
+      "Dracula"
     ]
   }
 }

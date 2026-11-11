@@ -8,6 +8,7 @@ const { pathToFileURL } = require('url');
 const { inspectDisc } = require('./disc');
 const { Randomizer } = require('./randomizer');
 const { prepareDiscZip } = require('./zipdisc');
+const { loadMapModel } = require('./sotn-map');
 
 const ROOT = path.join(__dirname, '..');
 const UI_DIR = path.join(ROOT, 'ui');
@@ -100,6 +101,8 @@ async function emulatorFile(rel) {
   }
 }
 
+const srtDir = () => settings.srtDir || path.join(VENDOR_DIR, 'sotnrandotools');
+
 function registerProtocol() {
   protocol.handle('app', (req) => {
     const url = new URL(req.url);
@@ -108,6 +111,7 @@ function registerProtocol() {
       case 'ui': return fileResponse(safeJoin(UI_DIR, rel || 'index.html'));
       case 'games': return fileResponse(safeJoin(GAMES_DIR, rel));
       case 'ejs': return emulatorFile(rel);
+      case 'srt': return fileResponse(safeJoin(srtDir(), rel));
       case 'media':
         if (rel.startsWith('bios')) return fileResponse(settings.biosPath);
         if (rel.startsWith('gamezip')) {
@@ -234,6 +238,19 @@ function registerIpc() {
   });
 
   ipcMain.handle('rando:randomSeed', () => randomSeed());
+
+  // Map tracker: locations + logic for a preset (null preset = classic, no logic).
+  ipcMain.handle('map:model', (_e, presetId) => {
+    const dir = srtDir();
+    const ok = fs.existsSync(path.join(dir, 'Extensions'));
+    if (!ok) return { available: false };
+    const model = loadMapModel({ srtDir: dir, randoPresetsDir: path.join(settings.randomizerDir, 'presets'), presetId });
+    return {
+      available: true,
+      hasIcons: fs.existsSync(path.join(dir, 'Images', 'texture.png')),
+      ...model,
+    };
+  });
 
   ipcMain.handle('rando:generate', async (e, opts) => {
     const vanilla = settings.games[opts.gameId] && settings.games[opts.gameId].vanillaBin;

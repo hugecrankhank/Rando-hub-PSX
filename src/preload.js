@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('hub', {
   loadGame: (gameId, p, seedId) => invoke('game:load', { gameId, path: p, seedId }),
   randoStatus: (gameId) => invoke('rando:status', gameId),
   randomSeed: () => invoke('rando:randomSeed'),
+  mapModel: (presetId) => invoke('map:model', presetId),
   generate: (opts) => invoke('rando:generate', opts),
   onRandoLog: (cb) => {
     const h = (_e, line) => cb(line);

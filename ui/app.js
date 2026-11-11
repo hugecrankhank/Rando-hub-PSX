@@ -58,6 +58,14 @@ function showTab(name) {
 }
 
 // ------------------------------------------------------------------ tracker
+// In-game item icon from the SotnRandoTools sheet (7 x 9 grid of 14px icons),
+// or the text abbreviation if the sheet isn't installed.
+function iconFor(it) {
+  if (!state.hasIcons || it.icon === undefined) return el('div', { class: 'abbr' }, it.short);
+  const col = it.icon % 7, row = Math.floor(it.icon / 7);
+  return el('div', { class: 'icon', style: `background-position:${(col / 6) * 100}% ${(row / 8) * 100}%` });
+}
+
 function buildTracker() {
   const root = $('trackerGroups');
   root.innerHTML = '';
@@ -67,10 +75,10 @@ function buildTracker() {
       const tile = el('div', {
         class: 'tile' + (it.key ? ' key' : ''),
         'data-id': it.id,
-        title: it.label + (it.relic !== undefined ? '' : ' (click to mark)'),
+        title: it.label,
         onclick: () => { toggleMark(it.id); },
-        oncontextmenu: (e) => { e.preventDefault(); state.marked.delete(it.id); if (it.relic !== undefined) state.auto.delete(it.relic); renderTracker(); saveTracker(); },
-      }, el('div', { class: 'abbr' }, it.short), el('div', { class: 'name' }, it.label));
+        oncontextmenu: (e) => { e.preventDefault(); state.marked.delete(it.id); if (abilityOf(it) !== undefined) state.auto.delete(abilityOf(it)); renderTracker(); saveTracker(); },
+      }, iconFor(it), el('div', { class: 'name' }, it.label));
       grid.append(tile);
     }
     root.append(el('div', { class: 'group' }, el('h4', {}, g.name), grid));
@@ -85,15 +93,18 @@ function buildTracker() {
   $('keyTotal').textContent = `/${keyTotal} key`;
 }
 
+const abilityOf = (it) => (it.relic !== undefined ? it.relic : it.ability);
 function isOwned(it) {
-  return state.marked.has(it.id) || (it.relic !== undefined && state.auto.has(it.relic));
+  const a = abilityOf(it);
+  return state.marked.has(it.id) || (a !== undefined && state.auto.has(a));
 }
 
 function renderTracker() {
   for (const it of allItems()) {
     const tile = document.querySelector(`.tile[data-id="${it.id}"]`);
     if (!tile) continue;
-    const auto = it.relic !== undefined && state.auto.has(it.relic);
+    const a = abilityOf(it);
+    const auto = a !== undefined && state.auto.has(a);
     tile.classList.toggle('owned', auto);
     tile.classList.toggle('marked', !auto && state.marked.has(it.id));
   }
@@ -101,6 +112,7 @@ function renderTracker() {
   $('relicCount').textContent = items.filter((i) => i.relic !== undefined && isOwned(i)).length;
   $('vladCount').textContent = items.filter((i) => i.vlad && isOwned(i)).length;
   $('keyCount').textContent = items.filter((i) => i.key && isOwned(i)).length;
+  if (state.map) renderMap();
   document.querySelectorAll('#bossList label').forEach((l) => {
     l.querySelector('input').checked = state.bosses.has(l.textContent);
   });
@@ -170,8 +182,10 @@ function pollMemory() {
     if (!locator.ready) return;
     toast('Auto-tracking connected to the game.');
   }
-  const bytes = locator.read(relicOffset, relicCount);
-  if (!bytes) { locator.invalidate(); return; }
+  const mem = state.def.memory;
+  const base = parseInt(mem.statusBlockStart, 16);
+  const block = locator.read(base, parseInt(mem.statusBlockLength, 16));
+  if (!block) { locator.invalidate(); return; }
 
   if (++readCounter % 40 === 0) {
     if (!locator.stillValid()) {
@@ -179,21 +193,113 @@ function pollMemory() {
     } else invalidStreak = 0;
   }
   // Sanity: relic bytes are tiny flags. Anything bigger means we're not in-game yet.
-  for (const b of bytes) if (b > relicMax) return;
+  for (let i = 0; i < relicCount; i++) if (block[i] > relicMax) return;
+  const at = (addr) => block[parseInt(addr, 16) - base];
+  const slot = (name) => at(mem.slots[name]);
+
+  const found = [];
+  for (let i = 0; i < relicCount; i++) if (block[i]) found.push(i);
+  const invBase = parseInt(mem.handQuantityStart, 16) - base;
+  for (const k of mem.keyItems) {
+    if (block[invBase + k.inventoryIndex] > 0 || k.slots.some((n) => slot(n) === k.value)) found.push(k.ability);
+  }
+  const ts = mem.thrustSwords;
+  if (ts.inventoryIndexes.some((i) => block[invBase + i] > 0 || ts.slots.some((n) => slot(n) === i))) found.push(ts.ability);
 
   let changed = false;
-  for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] && !state.auto.has(i)) {
-      state.auto.add(i);
-      changed = true;
-      const it = allItems().find((x) => x.relic === i);
-      const tile = it && document.querySelector(`.tile[data-id="${it.id}"]`);
-      if (tile) { tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash'); }
-    }
+  for (const a of found) {
+    if (state.auto.has(a)) continue;
+    state.auto.add(a);
+    changed = true;
+    const it = allItems().find((x) => abilityOf(x) === a);
+    const tile = it && document.querySelector(`.tile[data-id="${it.id}"]`);
+    if (tile) { tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash'); }
   }
   if (changed) { renderTracker(); saveTracker(); }
+
+  // Map tracker
+  if (state.map) {
+    const rStart = parseInt(mem.roomsStart, 16);
+    const rooms = locator.read(rStart, parseInt(mem.roomsLength, 16));
+    const stage = locator.read(parseInt(mem.stageId, 16), 1);
+    const open = locator.read(parseInt(mem.mapOpen, 16), 1);
+    if (rooms && stage && open) {
+      state.mapLive = {
+        visited: SotnMap.visitedFromRam(state.map, (addr) => {
+          const o = addr - rStart;
+          return o >= 0 && o < rooms.length ? rooms[o] : null;
+        }),
+        second: (stage[0] & parseInt(mem.secondCastleMask, 16)) !== 0,
+        open: open[0] > 0,
+      };
+      renderMap();
+    }
+  }
 }
 setInterval(pollMemory, 250);
+
+// ------------------------------------------------------------------ map tracker
+async function loadMap(presetId) {
+  const m = await hub.mapModel(presetId);
+  state.hasIcons = !!(m && m.hasIcons);
+  state.map = m && m.available ? m : null;
+  state.mapLive = null;
+  state.mapView = null; // null = follow the castle you're in
+  $('mapSection').hidden = !state.map;
+  if (state.map) $('mapPreset').textContent = presetId ? `Logic: ${presetId}` : 'Locations only (vanilla)';
+  renderMap();
+}
+
+function ownedAbilities() {
+  const owned = new Set(state.auto);
+  for (const it of allItems()) if (state.marked.has(it.id) && abilityOf(it) !== undefined) owned.add(abilityOf(it));
+  return owned;
+}
+
+function renderMap() {
+  const model = state.map;
+  if (!model) return;
+  const live = state.mapLive || { visited: new Set(), second: false, open: false };
+  const colors = SotnMap.computeColors(model, ownedAbilities(), live.visited);
+  const second = state.mapView === null ? live.second : state.mapView;
+
+  // Side panel map
+  const cv = $('castleMap');
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#07060a';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = 'rgba(201,162,74,0.07)';
+  for (let x = 0; x <= 256; x += 16) { ctx.beginPath(); ctx.moveTo(x * 2, 0); ctx.lineTo(x * 2, cv.height); ctx.stroke(); }
+  for (let y = 0; y <= 208; y += 16) { ctx.beginPath(); ctx.moveTo(0, y * 2); ctx.lineTo(cv.width, y * 2); ctx.stroke(); }
+  const list = SotnMap.markers(model, colors, live.visited, second);
+  SotnMap.drawMarkers(ctx, list, 2, 2, 0, 0);
+  state.mapMarkers = list;
+
+  const inCastle = model.locations.filter((l) => l.second === second).length;
+  const checked = model.locations.filter((l, i) => l.second === second && live.visited.has(i)).length;
+  const avail = list.filter((m) => m.color === SotnMap.COLORS.available).length;
+  $('mapStats').textContent = `${second ? 'Inverted' : 'First'} castle · ${checked}/${inCastle} checked · ${avail} in logic`;
+  $('mapCastle1').classList.toggle('active', !second);
+  $('mapCastle2').classList.toggle('active', second);
+
+  // In-game overlay: only while the game's own map screen is open, like BizHawk.
+  let overlay = null;
+  try { overlay = $('emuFrame').contentWindow.__psxOverlay; } catch (_) { /* not loaded */ }
+  if (overlay) {
+    if (live.open && state.settings.mapOverlay !== false) {
+      overlay.draw(SotnMap.markers(model, colors, live.visited, live.second), state.settings.mapCalib || {});
+    } else overlay.clear();
+  }
+}
+
+$('mapCastle1').addEventListener('click', () => { state.mapView = state.mapView === false ? null : false; renderMap(); });
+$('mapCastle2').addEventListener('click', () => { state.mapView = state.mapView === true ? null : true; renderMap(); });
+$('castleMap').addEventListener('mousemove', (e) => {
+  const r = e.target.getBoundingClientRect();
+  const x = ((e.clientX - r.left) / r.width) * 256, y = ((e.clientY - r.top) / r.height) * 208;
+  const hit = (state.mapMarkers || []).find((m) => x >= m.x - 1 && x <= m.x + m.w + 1 && y >= m.y - 1 && y <= m.y + m.h + 1);
+  e.target.title = hit ? hit.name : '';
+});
 
 // ------------------------------------------------------------------ timer
 function currentElapsed() {
@@ -225,6 +331,8 @@ async function play(pathToBin, seedId, label) {
   try {
     const info = await hub.loadGame(GAME_ID, pathToBin, seedId);
     state.current = { seedId, label, path: pathToBin };
+    const seed = state.seeds.find((x) => x.id === seedId);
+    await loadMap(seed ? seed.preset : null);
     loadTracker();
     locator.reset(info.probes);
     relicOffset = parseInt(state.def.memory.relicsOffset, 16);
@@ -409,6 +517,9 @@ async function renderSettings() {
   document.querySelectorAll('input[name="ejs"]').forEach((r) => { r.checked = r.value === s.emulatorData; });
   $('coreSelect').value = s.core;
   $('autoTrack').checked = s.autoTrack !== false;
+  $('mapOverlay').checked = s.mapOverlay !== false;
+  const c = s.mapCalib || {};
+  $('calib-dx').value = c.dx || 0; $('calib-dy').value = c.dy || 0; $('calib-scale').value = c.scale || 1;
 
   const bb = $('biosBadge');
   if (s.biosPath) {
@@ -475,6 +586,20 @@ $('coreSelect').addEventListener('change', async (e) => {
   toast('Takes effect next time you start a game.');
 });
 
+$('mapOverlay').addEventListener('change', async (e) => {
+  state.settings = await hub.setSettings({ mapOverlay: e.target.checked });
+  renderMap();
+});
+for (const k of ['dx', 'dy', 'scale']) {
+  $(`calib-${k}`).addEventListener('input', async (e) => {
+    const calib = { ...(state.settings.mapCalib || {}), [k]: Number(e.target.value) };
+    state.settings = await hub.setSettings({ mapCalib: calib });
+    renderMap();
+  });
+}
+
+$('srtLink').addEventListener('click', (e) => { e.preventDefault(); hub.openExternal('https://github.com/TalicZealot/SotnRandoTools'); });
+
 window.addEventListener('beforeunload', () => saveTracker());
 
 // ------------------------------------------------------------------ boot
@@ -482,6 +607,7 @@ window.addEventListener('beforeunload', () => saveTracker());
   state.settings = await hub.getSettings();
   state.def = await hub.gameDef(GAME_ID);
   $('gameTitle').textContent = state.def.title;
+  await loadMap(null);
   buildTracker();
   loadTracker();
   await renderSettings();

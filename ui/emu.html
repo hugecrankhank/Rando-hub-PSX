@@ -51,6 +51,7 @@
 <body>
 <div id="game"></div>
 <div id="err"></div>
+<canvas id="mapOverlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5"></canvas>
 <script>
   const q = new URLSearchParams(location.search);
   window.EJS_player = '#game';
@@ -93,7 +94,11 @@
         gl[fn] = function (...a) {
           // texSubImage2D(target, level, x, y, w, h, ...) / texImage2D(target, level, ifmt, w, h, ...)
           const w = fn === 'texSubImage2D' ? a[4] : a[3];
-          if (typeof w === 'number' && w >= 200) { uploads++; pending = true; }
+          if (typeof w === 'number' && w >= 200) {
+            uploads++; pending = true;
+            const h = fn === 'texSubImage2D' ? a[5] : a[4];
+            if (typeof h === 'number' && h >= 150) window.__psxFrame = { w, h };
+          }
           return orig.apply(this, a);
         };
       }
@@ -125,6 +130,50 @@
   })();
   window.EJS_ready = () => parent.postMessage({ type: 'emu:ready' }, location.origin);
   window.EJS_onGameStart = () => parent.postMessage({ type: 'emu:started' }, location.origin);
+
+  // Map-tracker overlay. The parent passes marker rects in SOTN map pixels (which
+  // are 1:1 with the game's 256-wide frame); we place them over the emulator's
+  // picture, letterboxed to 4:3, plus the user's calibration nudge.
+  window.__psxOverlay = (function () {
+    const cv = document.getElementById('mapOverlay');
+    const ctx = cv.getContext('2d');
+    let last = null;
+    function gameCanvas() {
+      let best = null, area = 0;
+      for (const c of document.querySelectorAll('#game canvas')) {
+        const r = c.getBoundingClientRect();
+        if (r.width * r.height > area) { area = r.width * r.height; best = c; }
+      }
+      return best;
+    }
+    function draw(list, calib) {
+      last = [list, calib];
+      const dpr = window.devicePixelRatio || 1;
+      if (cv.width !== Math.round(innerWidth * dpr) || cv.height !== Math.round(innerHeight * dpr)) {
+        cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const gc = gameCanvas();
+      if (!gc || !list || !list.length) return;
+      const r = gc.getBoundingClientRect();
+      const aspect = (calib && calib.aspect) || 4 / 3;
+      let vw = r.width, vh = r.width / aspect;
+      if (vh > r.height) { vh = r.height; vw = vh * aspect; }
+      const vx = r.left + (r.width - vw) / 2, vy = r.top + (r.height - vh) / 2;
+      const f = window.__psxFrame || { w: 256, h: 240 };
+      const hs = f.w >= 480 ? 2 : 1, vs = f.h >= 400 ? 2 : 1; // hi-res / interlaced modes
+      const c = calib || {};
+      const sx = (vw / f.w) * hs * (c.scale || 1);
+      const sy = (vh / f.h) * vs * (c.scale || 1);
+      const ox = vx + (c.dx || 0) * sx;
+      const oy = vy + (c.dy || 0) * sy;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      parent.SotnMap.drawMarkers(ctx, list, sx, sy, ox, oy);
+    }
+    addEventListener('resize', () => { if (last) draw(last[0], last[1]); });
+    return { draw, clear: () => draw([], null) };
+  })();
 
   const s = document.createElement('script');
   s.src = window.EJS_pathtodata + 'loader.js';
