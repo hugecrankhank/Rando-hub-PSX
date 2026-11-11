@@ -14,7 +14,55 @@ const def = JSON.parse(fs.readFileSync(path.join(ROOT, 'games', 'sotn.json'), 'u
 const target = path.join(VENDOR, def.randomizer.vendorDir);
 const force = process.argv.includes('--force');
 
+// SotnRandoTools (MIT, github.com/TalicZealot/SotnRandoTools) ships the map-location
+// data (Extensions/*.json) and the item icon sheet (Images/texture.png) that the
+// hub's map tracker uses. We pull them from its latest release.
+async function installRandoToolsData() {
+  const dest = path.join(VENDOR, 'sotnrandotools');
+  if (fs.existsSync(path.join(dest, 'Extensions')) && !force) {
+    console.log(`SotnRandoTools data already installed at ${dest}.`);
+    return;
+  }
+  console.log('Looking up the latest SotnRandoTools release…');
+  const headers = { 'User-Agent': 'psx-rando-hub-setup', Accept: 'application/vnd.github+json' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const rel = await (await fetch('https://api.github.com/repos/TalicZealot/SotnRandoTools/releases/latest', { headers })).json();
+  const asset = (rel.assets || []).find((a) => /^SotnRandoTools.*\.zip$/i.test(a.name)) || (rel.assets || []).find((a) => /\.zip$/i.test(a.name) && !/^Update/i.test(a.name));
+  if (!asset) throw new Error('Could not find a SotnRandoTools release zip.');
+  console.log(`Downloading ${asset.name} (${rel.tag_name})…`);
+  const res = await fetch(asset.browser_download_url, { headers: { 'User-Agent': headers['User-Agent'] } });
+  if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+  fs.mkdirSync(VENDOR, { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(VENDOR, '.tmp-'));
+  const zip = path.join(tmp, 'srt.zip');
+  fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+  const out = path.join(tmp, 'x');
+  fs.mkdirSync(out);
+  execFileSync('tar', ['-xf', zip, '-C', out], { stdio: 'inherit' });
+  // Find the folder that contains Extensions/
+  const find = (dir, depth = 0) => {
+    if (fs.existsSync(path.join(dir, 'Extensions'))) return dir;
+    if (depth > 4) return null;
+    for (const d of fs.readdirSync(dir)) {
+      const p = path.join(dir, d);
+      if (fs.statSync(p).isDirectory()) { const r = find(p, depth + 1); if (r) return r; }
+    }
+    return null;
+  };
+  const root = find(out);
+  if (!root) throw new Error('SotnRandoTools release has no Extensions folder.');
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  for (const sub of ['Extensions', 'Presets', 'Images']) {
+    if (fs.existsSync(path.join(root, sub))) fs.cpSync(path.join(root, sub), path.join(dest, sub), { recursive: true });
+  }
+  fs.writeFileSync(path.join(dest, 'VERSION.txt'), `${rel.tag_name}\nMIT License - https://github.com/TalicZealot/SotnRandoTools\n`);
+  fs.rmSync(tmp, { recursive: true, force: true });
+  console.log(`SotnRandoTools data installed to ${dest}`);
+}
+
 async function main() {
+  await installRandoToolsData();
   if (fs.existsSync(path.join(target, 'package.json')) && !force) {
     console.log(`SotN Randomizer already installed at ${target} (use --force to reinstall).`);
     return;
