@@ -244,6 +244,7 @@ async function loadMap(presetId) {
   state.hasIcons = !!(m && m.hasIcons);
   state.map = m && m.available ? m : null;
   state.mapLive = null;
+  state.mapKey = null;
   state.mapView = null; // null = follow the castle you're in
   $('mapSection').hidden = !state.map;
   if (state.map) $('mapPreset').textContent = presetId ? `Logic: ${presetId}` : 'Locations only (vanilla)';
@@ -260,8 +261,14 @@ function renderMap() {
   const model = state.map;
   if (!model) return;
   const live = state.mapLive || { visited: new Set(), second: false, open: false };
-  const colors = SotnMap.computeColors(model, ownedAbilities(), live.visited);
+  const owned = ownedAbilities();
   const second = state.mapView === null ? live.second : state.mapView;
+  const showOverlay = live.open && state.settings.mapOverlay !== false;
+  const key = [[...live.visited].join(','), [...owned].join(','), live.second, second, showOverlay,
+    JSON.stringify(state.settings.mapCalib || {}), $('emuFrame').src].join('|');
+  if (key === state.mapKey) return; // nothing changed: skip all drawing
+  state.mapKey = key;
+  const colors = SotnMap.computeColors(model, owned, live.visited);
 
   // Side panel map
   const cv = $('castleMap');
@@ -286,9 +293,8 @@ function renderMap() {
   let overlay = null;
   try { overlay = $('emuFrame').contentWindow.__psxOverlay; } catch (_) { /* not loaded */ }
   if (overlay) {
-    if (live.open && state.settings.mapOverlay !== false) {
-      overlay.draw(SotnMap.markers(model, colors, live.visited, live.second), state.settings.mapCalib || {});
-    } else overlay.clear();
+    if (showOverlay) overlay.draw(SotnMap.markers(model, colors, live.visited, live.second), state.settings.mapCalib || {});
+    else overlay.clear();
   }
 }
 
@@ -325,6 +331,17 @@ $('timerReset').addEventListener('click', () => {
 });
 setInterval(() => { if (state.timer.running) $('timerDisplay').textContent = fmt(currentElapsed()); }, 100);
 
+// ------------------------------------------------------------------ display rate
+const displayHz = new Promise((resolve) => {
+  let n = 0, t0 = 0;
+  const tick = (t) => {
+    if (!t0) t0 = t;
+    if (++n >= 90) return resolve(Math.round(((n - 1) * 1000) / (t - t0)));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
+
 // ------------------------------------------------------------------ emulator
 async function play(pathToBin, seedId, label) {
   if (state.emu === 'running') saveTracker();
@@ -339,7 +356,11 @@ async function play(pathToBin, seedId, label) {
     relicCount = state.def.memory.relicCount;
     relicMax = state.def.memory.relicMaxValidValue;
 
-    const q = new URLSearchParams({ core: info.core, game: info.gameUrl, bios: info.biosUrl, name: info.saveName, data: info.dataPath });
+    const hz = state.lastDisplayHz || await displayHz;
+    const q = new URLSearchParams({
+      core: info.core, game: info.gameUrl, bios: info.biosUrl, name: info.saveName, data: info.dataPath,
+      hz, pacing: state.settings.framePacing === 'off' ? 'off' : 'auto',
+    });
     const frame = $('emuFrame');
     frame.hidden = false;
     $('emptyState').hidden = true;
@@ -366,6 +387,7 @@ window.addEventListener('message', (e) => {
   }
   if (e.data.type === 'emu:display') {
     const { fps, made, shown } = e.data;
+    state.lastDisplayHz = fps;
     const low = fps < 50;
     const frameInfo = made ? ` · game ${made} made / ${Math.min(shown, made)} shown` : '';
     const dropping = made >= 50 && shown < made * 0.8;
@@ -518,6 +540,7 @@ async function renderSettings() {
   $('coreSelect').value = s.core;
   $('autoTrack').checked = s.autoTrack !== false;
   $('mapOverlay').checked = s.mapOverlay !== false;
+  $('framePacing').checked = s.framePacing !== 'off';
   const c = s.mapCalib || {};
   $('calib-dx').value = c.dx || 0; $('calib-dy').value = c.dy || 0; $('calib-scale').value = c.scale || 1;
 
@@ -586,6 +609,10 @@ $('coreSelect').addEventListener('change', async (e) => {
   toast('Takes effect next time you start a game.');
 });
 
+$('framePacing').addEventListener('change', async (e) => {
+  state.settings = await hub.setSettings({ framePacing: e.target.checked ? 'auto' : 'off' });
+  toast('Takes effect next time you start a game.');
+});
 $('mapOverlay').addEventListener('change', async (e) => {
   state.settings = await hub.setSettings({ mapOverlay: e.target.checked });
   renderMap();

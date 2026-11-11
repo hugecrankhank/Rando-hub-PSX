@@ -10,6 +10,38 @@
          color: #e9d9b0; font: 15px/1.5 "Segoe UI", sans-serif; padding: 40px; text-align: center; }
 </style>
 <script>
+  // Frame pacing for high-refresh screens. RetroArch's web build steps the core
+  // on every requestAnimationFrame and holds 60 fps by stalling on audio, which
+  // on a 120/144 Hz screen gives uneven frame times (micro-stutter). Instead we
+  // hand it an rAF that fires every Nth refresh, so each game frame stays on
+  // screen for exactly N refreshes.
+  (function () {
+    const q = new URLSearchParams(location.search);
+    const hz = Number(q.get('hz')) || 60;
+    const n = q.get('pacing') === 'off' ? 1 : Math.max(1, Math.min(4, Math.round(hz / 60)));
+    const raf = window.requestAnimationFrame.bind(window);
+    const caf = window.cancelAnimationFrame.bind(window);
+    window.__origRaf = raf;
+    window.__pacing = { hz, n };
+    if (n <= 1) return;
+    const live = new Map();
+    let nextId = 1;
+    window.requestAnimationFrame = function (cb) {
+      const id = nextId++;
+      let left = n;
+      const step = (t) => {
+        if (--left <= 0) { live.delete(id); cb(t); } else live.set(id, raf(step));
+      };
+      live.set(id, raf(step));
+      return id;
+    };
+    window.cancelAnimationFrame = function (id) {
+      const r = live.get(id);
+      if (r !== undefined) { caf(r); live.delete(id); }
+    };
+  })();
+</script>
+<script>
   // Capture the emulator core's WebAssembly memory before EmulatorJS loads, so the hub
   // can read PS1 RAM for auto-tracking without needing any special core build.
   (function () {
@@ -64,6 +96,7 @@
   window.EJS_color = '#8a1c24';
   window.EJS_backgroundColor = '#000000';
   window.EJS_threads = false;
+  window.EJS_retroarchOpts = { video_refresh_rate: (window.__pacing.hz / window.__pacing.n).toFixed(3) };
   window.EJS_disableDatabases = false;
   // Force every frame to be drawn. With frameskip on, the core still reports
   // 60 fps but only every other frame reaches the screen (smooth-looking 30).
@@ -124,9 +157,9 @@
         }, location.origin);
         ticks = 0; shown = 0; uploads = 0; t0 = t;
       }
-      requestAnimationFrame(tick);
+      window.__origRaf(tick);
     };
-    requestAnimationFrame(tick);
+    window.__origRaf(tick);
   })();
   window.EJS_ready = () => parent.postMessage({ type: 'emu:ready' }, location.origin);
   window.EJS_onGameStart = () => parent.postMessage({ type: 'emu:started' }, location.origin);
