@@ -238,6 +238,9 @@ function registerIpc() {
   });
 
   ipcMain.handle('rando:randomSeed', () => randomSeed());
+  ipcMain.handle('rando:options', async () => {
+    try { return await randomizer().gameOptions(); } catch (_) { return []; }
+  });
 
   // Map tracker: locations + logic for a preset (null preset = classic, no logic).
   ipcMain.handle('map:model', (_e, presetId) => {
@@ -266,6 +269,7 @@ function registerIpc() {
       vanillaBin: vanilla, outBin, seed, preset,
       tournament: !!opts.tournament,
       spoilerLevel: opts.spoilerLevel,
+      flags: Array.isArray(opts.flags) ? opts.flags : [],
       extraArgs: opts.extraArgs,
     }, send);
     fs.writeFileSync(path.join(dir, 'spoiler.txt'), res.log);
@@ -274,6 +278,7 @@ function registerIpc() {
       `FILE "${path.basename(outBin)}" BINARY\r\n  TRACK 01 MODE2/2352\r\n    INDEX 01 00:00:00\r\n`);
     const entry = {
       id, gameId: opts.gameId, seed, preset, tournament: !!opts.tournament,
+      flags: Array.isArray(opts.flags) ? opts.flags : [],
       created: new Date().toISOString(), bin: outBin, dir,
     };
     settings.seeds = [entry, ...(settings.seeds || [])].slice(0, 200);

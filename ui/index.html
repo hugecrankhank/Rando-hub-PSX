@@ -116,6 +116,15 @@
           </label>
           <label class="toggle inline"><input type="checkbox" id="tournament"> Tournament mode</label>
         </div>
+        <label class="feature" id="easyRow" hidden>
+          <input type="checkbox" id="easyMode">
+          <span><b>Easy mode</b><small>Simpler spell inputs and easier damage recovery, like sotn.io's easy mode.</small></span>
+        </label>
+        <details class="game-opts" id="gameOptsBox" hidden>
+          <summary>Game options <span id="gameOptsCount"></span></summary>
+          <div id="gameOpts"></div>
+          <p class="fine">These are the same switches sotn.io offers. The map tracker's logic doesn't account for options that change the castle layout (start room rando, shortcuts, library cards to 2nd castle).</p>
+        </details>
         <details>
           <summary>Advanced</summary>
           <label>Extra randomizer arguments

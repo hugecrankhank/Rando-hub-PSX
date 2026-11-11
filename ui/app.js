@@ -453,6 +453,73 @@ async function refreshRando() {
   renderChecklist();
 }
 
+// ------------------------------------------------------------------ game options
+const OPTION_GROUPS = [
+  ['Quality of life', ['antifreeze', 'mypurse', 'fastwarp', 'noprologue', 'unlocked', 'godspeed', 'libShort',
+    'singleHitGear', 'zeroDollarRelic', 'openClockStatue', 'forbRouteShort', 'trapDoor', 'nameList',
+    'enableAccessibilityPatches', 'iws', 'domino', 'betterCross', 'immunityPotion', 'rlbc']],
+  ['Challenge', ['levelOne', 'instantDeath', 'enemyStatRando', 'elemChaos', 'spikeRoom', 'revCastleTeleport',
+    'startRoomRando', 'startRoomRando2nd', 'surprise', 'shopPriceRando', 'itemNameRandoMode']],
+  ['Fun & cosmetic', ['turkey', 'colorrando', 'magicmax', 'seasonalPhrases', 'bossMusic', 'fourBeast', 'maxMasa',
+    'rainbowMantle', 'enhancedWeapons', 'cornucopia', 'lycan', 'warlock', 'nimbleLite']],
+];
+const OPTION_LABELS = {
+  easy: 'Easy mode', antifreeze: 'Anti-freeze', mypurse: 'My Purse', fastwarp: 'Fast Warp', noprologue: 'No Prologue',
+  unlocked: 'Unlocked Shortcuts', libShort: 'Library Shortcut', singleHitGear: 'Single-Hit Gears',
+  zeroDollarRelic: 'Free Library Relic', openClockStatue: 'Open Clock Statue', forbRouteShort: 'Forbidden Route Shortcut',
+  trapDoor: 'Entrance Trap Door', nameList: 'Normalized Names', enableAccessibilityPatches: 'Accessibility Patches',
+  iws: 'Infinite Wing Smash', domino: 'Guaranteed Drops', immunityPotion: 'Immunity Potions',
+  rlbc: 'Library Cards to 2nd Castle', levelOne: 'Level One', instantDeath: 'One-Hit KO', enemyStatRando: 'Enemy Stat Rando',
+  elemChaos: 'Element Chaos', spikeRoom: 'Spike Room Rando', revCastleTeleport: 'Reverse Castle Teleporter Rando',
+  startRoomRando: 'Start Room Rando', startRoomRando2nd: 'Start Room Rando (2nd castle)', surprise: 'Surprise Relics',
+  shopPriceRando: 'Shop Price Rando', itemNameRandoMode: 'Item Name Shuffle', turkey: 'Turkey Mode', colorrando: 'Color Rando',
+  magicmax: 'Magic Max Up', seasonalPhrases: 'Seasonal Phrases', bossMusic: 'Separate Boss Music', fourBeast: 'Four Beasts',
+  maxMasa: 'Max Muramasa', lycan: 'Lycanthrope', nimbleLite: 'Nimble Lite',
+};
+const prettyName = (n) => OPTION_LABELS[n] || n.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+
+function selectedFlags() {
+  try { return new Set(JSON.parse(localStorage.getItem('gameFlags') || '[]')); } catch (_) { return new Set(); }
+}
+function saveFlags(set) {
+  localStorage.setItem('gameFlags', JSON.stringify([...set]));
+  const extra = [...set].filter((f) => f !== 'easy').length;
+  $('gameOptsCount').textContent = extra ? `(${extra} on)` : '';
+}
+
+async function buildGameOptions() {
+  const opts = await hub.gameOptions();
+  state.gameOptions = opts;
+  const byName = new Map(opts.map((o) => [o.name, o]));
+  const chosen = selectedFlags();
+  for (const f of [...chosen]) if (!byName.has(f)) chosen.delete(f);
+
+  $('easyRow').hidden = !byName.has('easy');
+  $('easyMode').checked = chosen.has('easy');
+  $('easyMode').onchange = (e) => { const c = selectedFlags(); e.target.checked ? c.add('easy') : c.delete('easy'); saveFlags(c); };
+
+  const box = $('gameOpts');
+  box.innerHTML = '';
+  const placed = new Set(['easy']);
+  const groups = OPTION_GROUPS.map(([title, names]) => [title, names.filter((n) => byName.has(n))]);
+  groups.forEach(([, names]) => names.forEach((n) => placed.add(n)));
+  const other = opts.map((o) => o.name).filter((n) => !placed.has(n));
+  if (other.length) groups.push(['Other', other]);
+  for (const [title, names] of groups) {
+    if (!names.length) continue;
+    box.append(el('h5', {}, title));
+    for (const n of names) {
+      const o = byName.get(n);
+      const cb = el('input', { type: 'checkbox', checked: chosen.has(n), onchange: (e) => {
+        const c = selectedFlags(); e.target.checked ? c.add(n) : c.delete(n); saveFlags(c);
+      } });
+      box.append(el('label', { class: 'opt', title: `--${n}` }, cb, el('span', {}, prettyName(n), el('small', {}, o.desc))));
+    }
+  }
+  $('gameOptsBox').hidden = !opts.length;
+  saveFlags(chosen);
+}
+
 $('diceSeed').addEventListener('click', async () => { $('seedInput').value = await hub.randomSeed(); });
 
 $('seedForm').addEventListener('submit', async (e) => {
@@ -473,6 +540,7 @@ $('seedForm').addEventListener('submit', async (e) => {
       tournament: $('tournament').checked,
       spoilerLevel: Number($('spoilerLevel').value),
       extraArgs: $('extraArgs').value,
+      flags: [...selectedFlags()],
     });
     await loadSeeds();
     toast(`Seed ${entry.seed} ready.`);
@@ -505,7 +573,8 @@ function renderSeeds() {
     const isCur = state.current && state.current.seedId === s.id;
     ul.append(el('li', { class: isCur ? 'current' : '' },
       el('div', { class: 'meta' },
-        el('div', {}, el('div', { class: 'seed-name' }, s.seed), el('div', { class: 'seed-preset' }, s.preset + (s.tournament ? ' · tournament' : ''))),
+        el('div', {}, el('div', { class: 'seed-name' }, s.seed), el('div', { class: 'seed-preset' }, s.preset + (s.tournament ? ' · tournament' : '')),
+          (s.flags && s.flags.length) ? el('div', { class: 'chips' }, s.flags.map((f) => el('span', { class: 'chip' }, prettyName(f)))) : null),
         el('div', { class: 'seed-date' }, new Date(s.created).toLocaleString())),
       el('div', { class: 'actions' },
         el('button', { class: 'btn small primary', onclick: () => play(s.bin, s.id, `${s.preset} · ${s.seed}`) }, isCur ? 'Restart' : 'Play'),
@@ -592,7 +661,8 @@ $('pickRando').addEventListener('click', async () => {
   const p = await hub.pickDir('Choose your SotN Randomizer folder');
   if (!p) return;
   state.settings = await hub.setSettings({ randomizerDir: p });
-  refreshRando();
+  await refreshRando();
+  buildGameOptions();
 });
 $('pickSeedsDir').addEventListener('click', async () => {
   const p = await hub.pickDir('Choose where seeds are saved');
@@ -639,6 +709,7 @@ window.addEventListener('beforeunload', () => saveTracker());
   loadTracker();
   await renderSettings();
   await refreshRando();
+  await buildGameOptions();
   await loadSeeds();
   updateTrackPill();
 })();

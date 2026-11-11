@@ -111,6 +111,10 @@ class Randomizer {
     if (opts.tournament) args.push('-t');
     const v = Math.max(0, Math.min(3, opts.spoilerLevel ?? 2));
     if (v > 0) args.push('-' + 'v'.repeat(v));
+    if (opts.flags && opts.flags.length) {
+      const known = new Set((await this.gameOptions()).map((o) => o.name));
+      for (const f of opts.flags) if (known.has(f)) args.push(`--${f}`);
+    }
     if (opts.extraArgs) args.push(...splitArgs(opts.extraArgs));
 
     fs.mkdirSync(path.dirname(opts.outBin), { recursive: true });
@@ -146,3 +150,45 @@ function quoteIfNeeded(a) {
 }
 
 module.exports = { Randomizer, splitArgs, runNode };
+
+// ---- game options (sotn.io-style toggles) parsed from `randomize --help`
+// Flags that aren't gameplay settings, or that the hub already controls.
+const NOT_GAME_OPTIONS = new Set([
+  'version', 'in-bin', 'out', 'seed', 'options', 'expect-checksum', 'url', 'race', 'preset',
+  'preset-file', 'complexity', 'debug', 'no-seed', 'verbose', 'quiet', 'help', 'tournament',
+  'showSpoilers', 'disable-accessibility-patches',
+]);
+
+function parseHelpOptions(help) {
+  const lines = String(help).split(/\r?\n/);
+  const entries = [];
+  let cur = null;
+  for (const line of lines) {
+    const m = /^\s{1,8}(?:-(\w), )?--([\w-]+)(?:, --?([\w-]+))?\s{2,}(.*)$/.exec(line);
+    if (m) {
+      cur = { short: m[1] || null, name: m[2], alias: m[3] || null, text: m[4] };
+      entries.push(cur);
+    } else if (cur && /^\s{10,}\S/.test(line)) {
+      cur.text += ' ' + line.trim();
+    } else if (/^\S/.test(line)) {
+      cur = null;
+    }
+  }
+  return entries
+    .map((e) => {
+      const type = (/\[(boolean|string|number|count)\]\s*$/.exec(e.text) || [])[1] || 'string';
+      const desc = e.text.replace(/\s*\[(boolean|string|number|count)\]\s*$/, '').replace(/\s+/g, ' ').trim();
+      return { name: e.name, alias: e.alias, short: e.short, type, desc };
+    })
+    .filter((o) => o.type === 'boolean' && !NOT_GAME_OPTIONS.has(o.name));
+}
+
+Randomizer.prototype.gameOptions = async function () {
+  if (this._gameOptions) return this._gameOptions;
+  if (!this.entry()) return [];
+  if (!this._help) await this.argStyle();
+  this._gameOptions = parseHelpOptions(this._help);
+  return this._gameOptions;
+};
+
+module.exports.parseHelpOptions = parseHelpOptions;
