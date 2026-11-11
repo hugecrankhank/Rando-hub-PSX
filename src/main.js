@@ -14,6 +14,13 @@ const GAMES_DIR = path.join(ROOT, 'games');
 const VENDOR_DIR = app.isPackaged ? path.join(process.resourcesPath, 'vendor') : path.join(ROOT, 'vendor');
 const EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
 
+// Keep the emulator at full frame rate: don't let Chromium throttle timers or
+// rendering when the window isn't focused, or slow down to save power.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
@@ -123,6 +130,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
   Menu.setApplicationMenu(null);

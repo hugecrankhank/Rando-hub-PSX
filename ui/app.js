@@ -256,6 +256,15 @@ window.addEventListener('message', (e) => {
     if (e.data.type === 'emu:started') { state.emu = 'running'; setPill('emuStatus', 'running', 'Running'); }
     updateTrackPill();
   }
+  if (e.data.type === 'emu:display') {
+    const fps = e.data.fps;
+    const low = fps < 50;
+    setPill('displayFps', low ? 'error' : 'live', `Display ${fps} fps`);
+    if (low && !state.warnedLowFps && state.emu === 'running') {
+      state.warnedLowFps = true;
+      toast(`Windows is only showing ${fps} fps. If this is a laptop, plug it in and turn off Battery saver / set Power mode to Best performance.`, true, 9000);
+    }
+  }
   if (e.data.type === 'emu:error') { state.emu = 'error'; setPill('emuStatus', 'error', 'Emulator failed to load'); }
 });
 
@@ -276,6 +285,7 @@ function stop() {
   state.current = null;
   locator.reset([]);
   setPill('emuStatus', 'idle', 'Emulator idle');
+  setPill('displayFps', 'off', 'Display — fps');
   updateTrackPill();
   $('nowPlaying').textContent = 'No game loaded';
   $('stopGame').disabled = true;

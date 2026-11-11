@@ -64,7 +64,31 @@
   window.EJS_backgroundColor = '#000000';
   window.EJS_threads = false;
   window.EJS_disableDatabases = false;
-  window.EJS_defaultOptions = { 'save-state-location': 'browser' };
+  // Force every frame to be drawn. With frameskip on, the core still reports
+  // 60 fps but only every other frame reaches the screen (smooth-looking 30).
+  window.EJS_defaultOptions = {
+    'save-state-location': 'browser',
+    'pcsx_rearmed_frameskip_type': 'disabled',
+    'pcsx_rearmed_frameskip': '0',
+    'beetle_psx_hw_frame_duping': 'disabled',
+    'frameskip': '0',
+  };
+
+  // Measure how often the browser actually presents frames in this frame.
+  // If this reads ~30 while the emulator says 60, Windows/Chromium is capping
+  // the display rate (battery saver, power mode, etc.), not the emulator.
+  (function measureDisplay() {
+    let n = 0, t0 = performance.now();
+    const tick = (t) => {
+      n++;
+      if (t - t0 >= 1000) {
+        parent.postMessage({ type: 'emu:display', fps: Math.round((n * 1000) / (t - t0)) }, location.origin);
+        n = 0; t0 = t;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  })();
   window.EJS_ready = () => parent.postMessage({ type: 'emu:ready' }, location.origin);
   window.EJS_onGameStart = () => parent.postMessage({ type: 'emu:started' }, location.origin);
 
