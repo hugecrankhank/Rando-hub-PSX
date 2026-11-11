@@ -5,11 +5,36 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn } = require('child_process');
+
+// In a packaged Electron app, yargs' hideBin() assumes argv is [exe, ...args]
+// (no script path) because process.versions.electron is set and
+// process.defaultApp isn't. Under ELECTRON_RUN_AS_NODE the script path IS in
+// argv, so yargs would read it as the positional [url] argument
+// ("Argument seed is not url seed"). This launcher sets defaultApp so yargs
+// slices argv like plain Node, then runs the real script as the main module.
+// It's written outside app.asar so the child process can always load it.
+const LAUNCHER_SRC = `'use strict';
+process.defaultApp = true;
+const entry = process.argv[2];
+process.argv.splice(1, 2, entry);
+require('module').runMain();
+`;
+let launcherPath = null;
+function launcher() {
+  if (launcherPath && fs.existsSync(launcherPath)) return launcherPath;
+  const p = path.join(os.tmpdir(), 'psx-rando-hub-run-node.js');
+  try {
+    if (!fs.existsSync(p) || fs.readFileSync(p, 'utf8') !== LAUNCHER_SRC) fs.writeFileSync(p, LAUNCHER_SRC);
+  } catch (_) { /* fall through; spawn will surface errors */ }
+  launcherPath = p;
+  return p;
+}
 
 function runNode(script, args, cwd, onLine) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [script, ...args], {
+    const child = spawn(process.execPath, [launcher(), script, ...args], {
       cwd,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       windowsHide: true,
@@ -100,7 +125,9 @@ class Randomizer {
     onLine && onLine(`> randomize ${args.map(quoteIfNeeded).join(' ')}`);
     const res = await runNode(entry, args, this.dir, onLine);
     if (res.code !== 0 || !fs.existsSync(opts.outBin)) {
-      throw new Error(`Randomizer exited with code ${res.code}.\n${res.out.slice(-2000)}`);
+      // Full output was already streamed to the log; surface just the last line.
+      const last = res.out.trim().split(/\r?\n/).filter(Boolean).pop() || '';
+      throw new Error(`Randomizer exited with code ${res.code}: ${last}`);
     }
     return { log: res.out, args };
   }
@@ -118,4 +145,4 @@ function quoteIfNeeded(a) {
   return /\s/.test(a) ? `"${a}"` : a;
 }
 
-module.exports = { Randomizer, splitArgs };
+module.exports = { Randomizer, splitArgs, runNode };
