@@ -6,7 +6,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -21,7 +20,8 @@ async function main() {
     return;
   }
   fs.mkdirSync(VENDOR, { recursive: true });
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sotn-rando-'));
+  // Work inside vendor/ so the final rename never crosses drives (EXDEV on Windows).
+  const tmp = fs.mkdtempSync(path.join(VENDOR, '.tmp-'));
   const zip = path.join(tmp, 'rando.zip');
 
   console.log(`Downloading ${def.randomizer.repoZip} …`);
