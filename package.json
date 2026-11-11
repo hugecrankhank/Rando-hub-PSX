@@ -1,0 +1,50 @@
+{
+  "name": "psx-rando-hub",
+  "productName": "PSX Rando Hub",
+  "version": "0.1.0",
+  "description": "Desktop PlayStation hub: built-in emulator, auto-tracker and seed generator. First game: Castlevania: Symphony of the Night.",
+  "main": "src/main.js",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "start": "electron .",
+    "test": "node test/disc.test.js && node test/memory.test.js",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "author": "Robert",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.robert.psxrandohub",
+    "productName": "PSX Rando Hub",
+    "files": [
+      "src/**/*",
+      "ui/**/*",
+      "games/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor",
+        "to": "vendor",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PSX Rando Hub",
+      "artifactName": "PSX-Rando-Hub-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "PSX-Rando-Hub-Portable-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Emulator</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #game { width: 100%; height: 100%; }
+  #err { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+         color: #e9d9b0; font: 15px/1.5 "Segoe UI", sans-serif; padding: 40px; text-align: center; }
+</style>
+<script>
+  // Capture the emulator core's WebAssembly memory before EmulatorJS loads, so the hub
+  // can read PS1 RAM for auto-tracking without needing any special core build.
+  (function () {
+    const hook = (window.__psxHook = { memories: [], exportsList: [] });
+    const remember = (imports, result) => {
+      try {
+        const inst = result && (result.instance || result);
+        const ex = inst && inst.exports;
+        if (ex) {
+          hook.exportsList.push(ex);
+          for (const v of Object.values(ex)) if (v instanceof WebAssembly.Memory) hook.memories.push(v);
+        }
+        if (imports) {
+          for (const mod of Object.values(imports)) {
+            if (!mod || typeof mod !== 'object') continue;
+            for (const v of Object.values(mod)) if (v instanceof WebAssembly.Memory && !hook.memories.includes(v)) hook.memories.push(v);
+          }
+        }
+      } catch (_) { /* never break the emulator */ }
+      return result;
+    };
+    const W = WebAssembly;
+    const inst = W.instantiate.bind(W);
+    W.instantiate = (src, imports) => inst(src, imports).then((r) => remember(imports, r));
+    if (W.instantiateStreaming) {
+      const instS = W.instantiateStreaming.bind(W);
+      W.instantiateStreaming = (src, imports) => instS(src, imports).then((r) => remember(imports, r));
+    }
+    const OrigInstance = W.Instance;
+    W.Instance = function (mod, imports) {
+      const i = new OrigInstance(mod, imports);
+      remember(imports, i);
+      return i;
+    };
+    W.Instance.prototype = OrigInstance.prototype;
+  })();
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="err"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  window.EJS_player = '#game';
+  window.EJS_core = q.get('core') || 'psx';
+  window.EJS_gameUrl = q.get('game');
+  window.EJS_biosUrl = q.get('bios');
+  window.EJS_gameName = q.get('name') || 'game';
+  window.EJS_pathtodata = q.get('data');
+  window.EJS_startOnLoaded = true;
+  window.EJS_color = '#8a1c24';
+  window.EJS_backgroundColor = '#000000';
+  window.EJS_threads = false;
+  window.EJS_disableDatabases = false;
+  window.EJS_defaultOptions = { 'save-state-location': 'browser' };
+  window.EJS_ready = () => parent.postMessage({ type: 'emu:ready' }, location.origin);
+  window.EJS_onGameStart = () => parent.postMessage({ type: 'emu:started' }, location.origin);
+
+  const s = document.createElement('script');
+  s.src = window.EJS_pathtodata + 'loader.js';
+  s.onerror = () => {
+    const e = document.getElementById('err');
+    e.style.display = 'flex';
+    e.textContent = 'Could not load the emulator files from ' + window.EJS_pathtodata +
+      '. The first launch needs internet to download the emulator (it is cached afterwards).';
+    parent.postMessage({ type: 'emu:error' }, location.origin);
+  };
+  document.body.appendChild(s);
+</script>
+</body>
+</html>

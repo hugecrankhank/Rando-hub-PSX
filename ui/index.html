@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PSX Rando Hub</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="crest" aria-hidden="true"></span>
+    <div>
+      <div class="brand-name">PSX Rando Hub</div>
+      <div class="brand-sub" id="gameTitle">Castlevania: Symphony of the Night</div>
+    </div>
+  </div>
+  <div class="now-playing" id="nowPlaying">No game loaded</div>
+  <div class="status">
+    <span class="pill" id="emuStatus" data-state="idle">Emulator idle</span>
+    <span class="pill" id="trackStatus" data-state="off">Tracking off</span>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="stage">
+    <div class="screen" id="screen">
+      <div class="empty" id="emptyState">
+        <h1>Enter the castle</h1>
+        <p>Generate a seed or play the vanilla game. Your BIOS and disc are loaded from your PC.</p>
+        <div class="empty-actions">
+          <button class="btn primary" id="quickSeed">Generate &amp; play a seed</button>
+          <button class="btn" id="playVanilla">Play vanilla</button>
+        </div>
+        <ul class="checklist" id="setupChecklist"></ul>
+      </div>
+      <iframe id="emuFrame" title="Emulator" hidden allow="gamepad; fullscreen; autoplay"></iframe>
+    </div>
+    <div class="stage-bar">
+      <button class="btn small" id="stopGame" disabled>Stop</button>
+      <button class="btn small" id="fullscreen" disabled>Fullscreen</button>
+      <span class="hint">Controls, save states and gamepad mapping are in the emulator's own bar (hover the game).</span>
+    </div>
+  </section>
+
+  <aside class="side">
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="tracker">Tracker</button>
+      <button role="tab" class="tab" data-tab="seeds">Seeds</button>
+      <button role="tab" class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- TRACKER -->
+    <div class="panel active" id="panel-tracker">
+      <div class="timer">
+        <div class="time" id="timerDisplay">0:00:00.0</div>
+        <div class="timer-btns">
+          <button class="btn small" id="timerStart">Start</button>
+          <button class="btn small" id="timerReset">Reset</button>
+        </div>
+      </div>
+      <div class="counts">
+        <div><span id="relicCount">0</span><small>/30 relics</small></div>
+        <div><span id="vladCount">0</span><small>/5 Vlad</small></div>
+        <div><span id="keyCount">0</span><small id="keyTotal">/0 key</small></div>
+      </div>
+      <div id="trackerGroups"></div>
+      <details class="bosses">
+        <summary>Bosses</summary>
+        <div id="bossList"></div>
+      </details>
+      <div class="tracker-foot">
+        <label class="toggle"><input type="checkbox" id="autoTrack" checked> Auto-track relics from game memory</label>
+        <button class="btn small ghost" id="trackerReset">Clear tracker</button>
+      </div>
+      <p class="fine">Click a tile to mark it yourself; right-click to clear. Key items (rings, Spike Breaker, Holy Glasses) are click-to-mark.</p>
+    </div>
+
+    <!-- SEEDS -->
+    <div class="panel" id="panel-seeds">
+      <form id="seedForm" class="form">
+        <label>Preset
+          <select id="preset"></select>
+        </label>
+        <label>Seed
+          <div class="row">
+            <input id="seedInput" placeholder="Leave blank for random" autocomplete="off" spellcheck="false">
+            <button type="button" class="btn small" id="diceSeed" title="Random seed">Roll</button>
+          </div>
+        </label>
+        <div class="row two">
+          <label>Spoiler log
+            <select id="spoilerLevel">
+              <option value="0">Off</option>
+              <option value="1">Basic (-v)</option>
+              <option value="2" selected>Detailed (-vv)</option>
+              <option value="3">Full (-vvv)</option>
+            </select>
+          </label>
+          <label class="toggle inline"><input type="checkbox" id="tournament"> Tournament mode</label>
+        </div>
+        <details>
+          <summary>Advanced</summary>
+          <label>Extra randomizer arguments
+            <input id="extraArgs" placeholder="e.g. --no-prologue" spellcheck="false">
+          </label>
+        </details>
+        <button class="btn primary wide" id="generateBtn" type="submit">Generate seed</button>
+      </form>
+      <pre class="log" id="seedLog" hidden></pre>
+      <h3 class="section">Your seeds</h3>
+      <ul class="seed-list" id="seedList"></ul>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="panel" id="panel-settings">
+      <div class="setting">
+        <div class="setting-head"><b>PlayStation BIOS</b><span class="badge" id="biosBadge"></span></div>
+        <div class="path" id="biosPath">Not set</div>
+        <button class="btn small" id="pickBios">Choose BIOS file…</button>
+        <p class="fine">A 512 KB PS1 BIOS dump, e.g. SCPH-1001 / SCPH-5501 (USA).</p>
+      </div>
+      <div class="setting">
+        <div class="setting-head"><b>Symphony of the Night disc</b><span class="badge" id="discBadge"></span></div>
+        <div class="path" id="discPath">Not set</div>
+        <button class="btn small" id="pickDisc">Choose Track 1 .bin…</button>
+        <p class="fine">The unmodified USA (SLUS-00067) data track — usually named "… (Track 1).bin". Seeds are built from this.</p>
+      </div>
+      <div class="setting">
+        <div class="setting-head"><b>Seed generator</b><span class="badge" id="randoBadge"></span></div>
+        <div class="path" id="randoPath"></div>
+        <button class="btn small" id="pickRando">Use a different folder…</button>
+        <p class="fine">Install it with <code>npm run setup</code>, or point this at a downloaded copy of SotN Randomizer.</p>
+      </div>
+      <div class="setting">
+        <div class="setting-head"><b>Seeds folder</b></div>
+        <div class="path" id="seedsPath"></div>
+        <button class="btn small" id="pickSeedsDir">Change…</button>
+      </div>
+      <div class="setting">
+        <div class="setting-head"><b>Emulator files</b></div>
+        <label class="toggle"><input type="radio" name="ejs" value="cache"> Download once, then play offline</label>
+        <label class="toggle"><input type="radio" name="ejs" value="cdn"> Always fetch the latest from the EmulatorJS CDN</label>
+        <label>Core
+          <select id="coreSelect">
+            <option value="psx">PCSX ReARMed (fast, default)</option>
+            <option value="mednafen_psx_hw">Beetle PSX HW (accurate)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="spoilerDialog">
+  <form method="dialog">
+    <h3 id="spoilerTitle">Spoiler log</h3>
+    <div class="spoiler-wrap">
+      <pre id="spoilerText" class="blurred"></pre>
+      <button type="button" class="btn" id="revealSpoiler">Reveal spoilers</button>
+    </div>
+    <div class="dialog-actions"><button class="btn">Close</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="memory.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
