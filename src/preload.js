@@ -25,6 +25,12 @@ contextBridge.exposeInMainWorld('hub', {
   listSeeds: () => invoke('seeds:list'),
   spoiler: (id) => invoke('seeds:spoiler', id),
   deleteSeed: (id) => invoke('seeds:delete', id),
+  openPopout: () => invoke('popout:open'),
+  sendPopoutState: (st) => ipcRenderer.send('popout:state', st),
+  getPopout: () => invoke('popout:get'),
+  setPopoutPrefs: (p) => invoke('popout:prefs', p),
+  onPopoutState: (cb) => ipcRenderer.on('popout:state', (_e, st) => cb(st)),
+  onPopoutClosed: (cb) => ipcRenderer.on('popout:closed', () => cb()),
   showInFolder: (p) => invoke('shell:show', p),
   openExternal: (url) => invoke('shell:open', url),
 });

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SOTN Tracker</title>
+<style>
+  :root { --bg: #0d0b10; --gold: #c9a24a; --muted: #9c8f86; --text: #e8dfcf; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 13px "Segoe UI", system-ui, sans-serif; user-select: none; }
+  body.bg-green { --bg: #00ff00; }
+  body.bg-magenta { --bg: #ff00ff; }
+  body.bg-black { --bg: #000; }
+  #wrap { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 6px; box-sizing: border-box; }
+  #counts { display: flex; gap: 14px; justify-content: center; font: 600 15px "Palatino Linotype", Georgia, serif;
+    color: var(--gold); text-shadow: 0 1px 2px #000, 0 0 3px #000; padding-bottom: 4px; white-space: nowrap; }
+  #counts small { color: #e8dfcf; font-weight: normal; }
+  body.no-counts #counts { display: none; }
+  #grid { flex: 1; display: grid; align-content: center; justify-content: center; gap: 4px; }
+  .cell { display: flex; align-items: center; justify-content: center; }
+  .icon { image-rendering: pixelated; background-image: url("app://srt/Images/texture.png"); background-size: 700% 900%; }
+  .cell.off .icon { filter: grayscale(1) brightness(.35); } /* opaque so chroma key never eats it */
+  .cell.off.hide-missing { display: none; }
+  .txt { font: 600 11px "Palatino Linotype", Georgia, serif; color: var(--gold); border: 1px solid #4a3d24;
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+  .cell.off .txt { color: #5d5257; border-color: #2f2533; }
+  #bar { position: fixed; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s;
+    background: rgba(13,11,16,.92); border: 1px solid #2f2533; padding: 3px; border-radius: 3px; z-index: 5; }
+  body:hover #bar { opacity: 1; }
+  #bar select, #bar button { font: 11.5px "Segoe UI", sans-serif; background: #15111a; color: var(--text);
+    border: 1px solid #2f2533; padding: 2px 5px; border-radius: 2px; cursor: pointer; }
+  #bar button.on { border-color: var(--gold); color: var(--gold); }
+  #empty[hidden] { display: none; }
+  #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="counts"></div>
+  <div id="grid"></div>
+</div>
+<div id="empty">Waiting for the hub…</div>
+<div id="bar" title="Only visible while the mouse is over this window">
+  <select id="show">
+    <option value="all">All items</option>
+    <option value="progression">Progression only</option>
+  </select>
+  <select id="layout">
+    <option value="grid">Show missing (dimmed)</option>
+    <option value="collected">Collected only</option>
+  </select>
+  <select id="bg">
+    <option value="dark">Dark</option>
+    <option value="black">Black</option>
+    <option value="green">Green screen</option>
+    <option value="magenta">Magenta key</option>
+  </select>
+  <button id="counter">Counts</button>
+  <button id="ontop">On top</button>
+</div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+let state = null;
+let prefs = { show: 'all', layout: 'grid', bg: 'dark', counts: true, onTop: false };
+
+function applyPrefs() {
+  $('show').value = prefs.show; $('layout').value = prefs.layout; $('bg').value = prefs.bg;
+  document.body.className = `bg-${prefs.bg}` + (prefs.counts ? '' : ' no-counts');
+  $('counter').classList.toggle('on', !!prefs.counts);
+  $('ontop').classList.toggle('on', !!prefs.onTop);
+}
+async function setPref(k, v) {
+  prefs[k] = v;
+  applyPrefs();
+  await hub.setPopoutPrefs({ [k]: v });
+  render();
+}
+$('show').onchange = (e) => setPref('show', e.target.value);
+$('layout').onchange = (e) => setPref('layout', e.target.value);
+$('bg').onchange = (e) => setPref('bg', e.target.value);
+$('counter').onclick = () => setPref('counts', !prefs.counts);
+$('ontop').onclick = () => setPref('onTop', !prefs.onTop);
+
+// Choose the column count / tile size that fills the window best.
+function fit(n, w, h, gap) {
+  let best = { cols: 1, size: 0 };
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const size = Math.floor(Math.min((w - gap * (cols - 1)) / cols, (h - gap * (rows - 1)) / rows));
+    if (size > best.size) best = { cols, size };
+  }
+  return best;
+}
+
+function render() {
+  if (!state) return;
+  $('empty').hidden = true;
+  let items = state.items;
+  if (prefs.show === 'progression') items = items.filter((i) => i.key || i.vlad);
+  if (prefs.layout === 'collected') items = items.filter((i) => i.owned);
+
+  const c = state.counts;
+  $('counts').innerHTML = '';
+  const add = (v, label) => { const s = document.createElement('span'); s.innerHTML = `${v}<small>${label}</small>`; $('counts').append(s); };
+  add(c.relics, ' /30 relics');
+  if (c.checks) add(c.checks.done, ` /${c.checks.total} checks`);
+
+  const grid = $('grid');
+  const gap = 4;
+  const rect = grid.getBoundingClientRect();
+  const { cols, size } = fit(Math.max(items.length, 1), rect.width, rect.height, gap);
+  grid.style.gridTemplateColumns = `repeat(${cols}, ${size}px)`;
+  grid.style.gridAutoRows = `${size}px`;
+  grid.innerHTML = '';
+  for (const it of items) {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (it.owned ? '' : ' off');
+    cell.title = it.label;
+    if (state.hasIcons && it.icon !== undefined) {
+      const ic = document.createElement('div');
+      ic.className = 'icon';
+      const px = Math.floor(size / 14) * 14 || size; // whole-pixel scaling keeps sprites crisp
+      ic.style.width = ic.style.height = px + 'px';
+      ic.style.backgroundPosition = `${((it.icon % 7) / 6) * 100}% ${(Math.floor(it.icon / 7) / 8) * 100}%`;
+      cell.append(ic);
+    } else {
+      const t = document.createElement('div');
+      t.className = 'txt';
+      t.textContent = it.short;
+      cell.append(t);
+    }
+    grid.append(cell);
+  }
+}
+
+hub.onPopoutState((st) => { state = st; render(); });
+addEventListener('resize', render);
+hub.getPopout().then(({ state: st, prefs: p }) => {
+  prefs = { ...prefs, ...(p || {}) };
+  applyPrefs();
+  if (st) { state = st; render(); }
+});
+</script>
+</body>
+</html>

@@ -145,6 +145,7 @@ function createWindow() {
   });
   Menu.setApplicationMenu(null);
   win.loadURL('app://ui/index.html');
+  win.on('closed', () => app.quit()); // closing the hub also closes the stream pop-out
   if (process.argv.includes('--devtools')) win.webContents.openDevTools({ mode: 'detach' });
   win.webContents.on('before-input-event', (_e, input) => {
     if (input.type === 'keyDown' && input.key === 'F12') win.webContents.toggleDevTools();
@@ -301,10 +302,45 @@ function registerIpc() {
     saveSettings();
     return true;
   });
+  ipcMain.handle('popout:open', () => { openPopout(); return true; });
+  ipcMain.handle('popout:get', () => ({ state: popoutState, prefs: settings.popout || {} }));
+  ipcMain.on('popout:state', (_e, st) => {
+    popoutState = st;
+    if (popout && !popout.isDestroyed()) popout.webContents.send('popout:state', st);
+  });
+  ipcMain.handle('popout:prefs', (_e, prefs) => {
+    settings.popout = { ...(settings.popout || {}), ...prefs };
+    saveSettings();
+    if (popout && !popout.isDestroyed()) popout.setAlwaysOnTop(!!settings.popout.onTop);
+    return settings.popout;
+  });
   ipcMain.handle('shell:show', (_e, p) => { if (p) shell.showItemInFolder(p); });
   ipcMain.handle('shell:open', (_e, url) => {
     if (/^https:\/\//.test(url)) shell.openExternal(url);
   });
+}
+
+// ---------------------------------------------------------------- stream pop-out
+let popout = null;
+let popoutState = null;
+function openPopout() {
+  if (popout && !popout.isDestroyed()) { popout.show(); popout.focus(); return; }
+  const b = settings.popoutBounds || {};
+  popout = new BrowserWindow({
+    width: b.width || 460, height: b.height || 300, x: b.x, y: b.y,
+    minWidth: 160, minHeight: 90,
+    title: 'SOTN Tracker',
+    backgroundColor: '#0d0b10',
+    autoHideMenuBar: true,
+    alwaysOnTop: !!(settings.popout && settings.popout.onTop),
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+  });
+  popout.setMenu(null);
+  popout.loadURL('app://ui/popout.html');
+  const saveBounds = () => { if (popout && !popout.isDestroyed()) { settings.popoutBounds = popout.getBounds(); saveSettings(); } };
+  popout.on('resized', saveBounds);
+  popout.on('moved', saveBounds);
+  popout.on('closed', () => { popout = null; if (win && !win.isDestroyed()) win.webContents.send('popout:closed'); });
 }
 
 app.whenReady().then(() => {
@@ -315,3 +351,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => { if (popout && !popout.isDestroyed()) popout.destroy(); });

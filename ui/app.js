@@ -113,8 +113,28 @@ function renderTracker() {
   $('vladCount').textContent = items.filter((i) => i.vlad && isOwned(i)).length;
   $('keyCount').textContent = items.filter((i) => i.key && isOwned(i)).length;
   if (state.map) renderMap();
+  pushPopout();
   document.querySelectorAll('#bossList label').forEach((l) => {
     l.querySelector('input').checked = state.bosses.has(l.textContent);
+  });
+}
+
+// Stream pop-out: send the current tracker state to the pop-out window.
+function pushPopout() {
+  if (!state.def) return;
+  const items = allItems().map((it) => ({
+    id: it.id, label: it.label, short: it.short, icon: it.icon,
+    key: !!it.key, vlad: !!it.vlad, owned: isOwned(it),
+  }));
+  let checks = null;
+  if (state.map) {
+    const v = (state.mapLive && state.mapLive.visited) || new Set();
+    checks = { done: v.size, total: state.map.locations.length };
+  }
+  hub.sendPopoutState({
+    hasIcons: !!state.hasIcons,
+    items,
+    counts: { relics: items.filter((i, n) => allItems()[n].relic !== undefined && i.owned).length, checks },
   });
 }
 
@@ -145,6 +165,8 @@ function loadTracker() {
   renderTracker();
   renderTimer();
 }
+
+$('popoutBtn').addEventListener('click', () => hub.openPopout());
 
 $('trackerReset').addEventListener('click', () => {
   if (!confirm('Clear the tracker for this game?')) return;
@@ -268,6 +290,7 @@ function renderMap() {
     JSON.stringify(state.settings.mapCalib || {}), $('emuFrame').src].join('|');
   if (key === state.mapKey) return; // nothing changed: skip all drawing
   state.mapKey = key;
+  pushPopout();
   const colors = SotnMap.computeColors(model, owned, live.visited);
 
   // Side panel map
