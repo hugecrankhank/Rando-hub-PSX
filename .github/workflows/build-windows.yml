@@ -24,6 +24,13 @@ jobs:
       - name: Bundle SotN Randomizer
         run: npm run setup
 
+      - name: Show randomizer options
+        shell: bash
+        run: |
+          cd vendor/sotn-randomizer
+          node randomize --help || true
+          ls presets || true
+
       - name: Run tests
         run: npm test
 
