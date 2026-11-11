@@ -257,9 +257,11 @@ window.addEventListener('message', (e) => {
     updateTrackPill();
   }
   if (e.data.type === 'emu:display') {
-    const fps = e.data.fps;
+    const { fps, made, shown } = e.data;
     const low = fps < 50;
-    setPill('displayFps', low ? 'error' : 'live', `Display ${fps} fps`);
+    const frameInfo = made ? ` · game ${made} made / ${Math.min(shown, made)} shown` : '';
+    const dropping = made >= 50 && shown < made * 0.8;
+    setPill('displayFps', low || dropping ? 'error' : 'live', `Screen ${fps} Hz${frameInfo}`);
     if (low && !state.warnedLowFps && state.emu === 'running') {
       state.warnedLowFps = true;
       toast(`Windows is only showing ${fps} fps. If this is a laptop, plug it in and turn off Battery saver / set Power mode to Best performance.`, true, 9000);

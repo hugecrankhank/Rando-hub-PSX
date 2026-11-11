@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const { inspectDisc } = require('./disc');
 const { Randomizer } = require('./randomizer');
+const { prepareDiscZip } = require('./zipdisc');
 
 const ROOT = path.join(__dirname, '..');
 const UI_DIR = path.join(ROOT, 'ui');
@@ -109,6 +110,11 @@ function registerProtocol() {
       case 'ejs': return emulatorFile(rel);
       case 'media':
         if (rel.startsWith('bios')) return fileResponse(settings.biosPath);
+        if (rel.startsWith('gamezip')) {
+          const z = currentGame && currentGame.zip;
+          if (!z) return new Response('Not found', { status: 404 });
+          return new Response(z.stream(), { headers: { 'Content-Type': 'application/zip', 'Content-Length': String(z.size) } });
+        }
         if (rel.startsWith('game')) return fileResponse(currentGame && currentGame.path);
         return new Response('Not found', { status: 404 });
       default: return new Response('Not found', { status: 404 });
@@ -192,14 +198,19 @@ function registerIpc() {
   ipcMain.handle('game:def', (_e, id) => loadGameDef(id));
 
   // Point the emulator at a disc image and return what the tracker needs.
-  ipcMain.handle('game:load', (_e, { gameId, path: p, seedId }) => {
+  ipcMain.handle('game:load', async (_e, { gameId, path: p, seedId }) => {
     if (!settings.biosPath || !fs.existsSync(settings.biosPath)) throw new Error('Pick your PlayStation BIOS in Settings first.');
     if (!p || !fs.existsSync(p)) throw new Error('Disc image not found.');
     const info = inspectDisc(p);
     currentGame = { path: p, gameId, seedId: seedId || null };
     const token = crypto.randomBytes(4).toString('hex'); // cache-buster per load
+    // Beetle PSX won't open a bare .bin; give it bin + cue in one stored zip.
+    const needsCue = /^mednafen_psx/.test(settings.core);
+    if (needsCue) currentGame.zip = await prepareDiscZip(p, path.join(app.getPath('userData'), 'crc-cache.json'));
     return {
-      gameUrl: `app://media/game/${token}/${path.basename(p).replace(/[^A-Za-z0-9._-]/g, '_')}`,
+      gameUrl: needsCue
+        ? `app://media/gamezip/${token}/game.zip`
+        : `app://media/game/${token}/${path.basename(p).replace(/[^A-Za-z0-9._-]/g, '_')}`,
       // Served under a canonical name: the PS1 cores look for scphXXXX.bin in their system dir,
       // and fall back to a less compatible HLE BIOS if the name doesn't match.
       biosUrl: `app://media/bios/${token}/scph5501.bin`,

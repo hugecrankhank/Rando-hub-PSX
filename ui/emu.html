@@ -77,13 +77,47 @@
   // Measure how often the browser actually presents frames in this frame.
   // If this reads ~30 while the emulator says 60, Windows/Chromium is capping
   // the display rate (battery saver, power mode, etc.), not the emulator.
-  (function measureDisplay() {
-    let n = 0, t0 = performance.now();
+  //
+  // Also count game frames: every new emulated frame is uploaded to a WebGL
+  // texture. "made" = uploads per second; "shown" = screen refreshes that got
+  // at least one new frame. made 60 / shown 30 means two frames are being
+  // produced per refresh and one is never seen.
+  (function measureFrames() {
+    let uploads = 0, pending = false;
+    const wrap = (gl) => {
+      if (!gl || gl.__psxWrapped) return gl;
+      gl.__psxWrapped = true;
+      for (const fn of ['texSubImage2D', 'texImage2D']) {
+        const orig = gl[fn];
+        if (typeof orig !== 'function') continue;
+        gl[fn] = function (...a) {
+          // texSubImage2D(target, level, x, y, w, h, ...) / texImage2D(target, level, ifmt, w, h, ...)
+          const w = fn === 'texSubImage2D' ? a[4] : a[3];
+          if (typeof w === 'number' && w >= 200) { uploads++; pending = true; }
+          return orig.apply(this, a);
+        };
+      }
+      return gl;
+    };
+    const origGet = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      const ctx = origGet.call(this, type, ...rest);
+      return /webgl/i.test(type) ? wrap(ctx) : ctx;
+    };
+
+    let ticks = 0, shown = 0, t0 = performance.now();
     const tick = (t) => {
-      n++;
+      ticks++;
+      if (pending) { shown++; pending = false; }
       if (t - t0 >= 1000) {
-        parent.postMessage({ type: 'emu:display', fps: Math.round((n * 1000) / (t - t0)) }, location.origin);
-        n = 0; t0 = t;
+        const k = 1000 / (t - t0);
+        parent.postMessage({
+          type: 'emu:display',
+          fps: Math.round(ticks * k),
+          made: Math.round(uploads * k),
+          shown: Math.round(shown * k),
+        }, location.origin);
+        ticks = 0; shown = 0; uploads = 0; t0 = t;
       }
       requestAnimationFrame(tick);
     };
