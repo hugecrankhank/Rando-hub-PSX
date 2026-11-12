@@ -307,8 +307,9 @@ function renderMap() {
 
   const inCastle = model.locations.filter((l) => l.second === second).length;
   const checked = model.locations.filter((l, i) => l.second === second && live.visited.has(i)).length;
-  const avail = list.filter((m) => m.color === SotnMap.COLORS.available).length;
-  $('mapStats').textContent = `${second ? 'Inverted' : 'First'} castle · ${checked}/${inCastle} checked · ${avail} in logic`;
+  const count = (c) => list.filter((m) => m.color === SotnMap.COLORS[c]).length;
+  $('mapStats').textContent = `${second ? 'Inverted' : 'First'} castle · ${checked}/${inCastle} checked · ` +
+    `${count('available')} obtainable · ${count('allowed')} out of logic · ${count('unavailable')} not yet`;
   $('mapCastle1').classList.toggle('active', !second);
   $('mapCastle2').classList.toggle('active', second);
 

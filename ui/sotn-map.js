@@ -3,11 +3,11 @@
 (function (root) {
   'use strict';
 
-  // In-game map palette indices used by SotnRandoTools, shown as RGB here.
+  // Traffic-light logic colors.
   const COLORS = {
-    available: '#36d14a',   // green: reachable in logic
-    allowed: '#c23cc8',     // purple: reachable, out of logic
-    unavailable: '#9a9a9a', // grey: not reachable yet
+    available: '#36d14a',   // green: obtainable with your current items
+    allowed: '#f5c518',     // yellow: possible, but out of logic (sequence break)
+    unavailable: '#e5323b', // red: not obtainable yet
     border: '#f2f2f2',
   };
 
