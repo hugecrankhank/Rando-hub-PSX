@@ -22,7 +22,16 @@ contextBridge.exposeInMainWorld('hub', {
     ipcRenderer.on('rando:log', h);
     return () => ipcRenderer.removeListener('rando:log', h);
   },
-  listSeeds: () => invoke('seeds:list'),
+  listSeeds: (gameId) => invoke('seeds:list', gameId),
+  ff7: {
+    checkDiscs: () => invoke('ff7:checkDiscs'),
+    names: () => invoke('ff7:names'),
+    presets: () => invoke('ff7:presets'),
+    resolveCue: (p) => invoke('ff7:resolveCue', p),
+    generate: (opts) => invoke('ff7:generate', opts),
+    load: (seedId, disc) => invoke('ff7:load', { seedId, disc }),
+    exportSeed: (seedId) => invoke('ff7:export', seedId),
+  },
   spoiler: (id) => invoke('seeds:spoiler', id),
   deleteSeed: (id) => invoke('seeds:delete', id),
   openPopout: () => invoke('popout:open'),
