@@ -42,15 +42,21 @@ jobs:
             echo "v${{ steps.v.outputs.version }} is already on Rando Hub."; echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install, bundle SotN Randomizer, test
+      # (Windows' own shell, like the build workflow: setup.js unzips with Windows' tar, and Git Bash's tar
+      # can't read D:\ paths)
+      - name: Install app dependencies
         if: steps.have.outputs.skip != '1'
-        shell: bash
+        run: npm install --no-audit --no-fund
+
+      - name: Bundle SotN Randomizer + map tracker data
+        if: steps.have.outputs.skip != '1'
+        run: npm run setup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npm install --no-audit --no-fund
-          npm run setup
-          npm test
+
+      - name: Run tests
+        if: steps.have.outputs.skip != '1'
+        run: npm test
 
       - name: Build the app folder
         if: steps.have.outputs.skip != '1'
