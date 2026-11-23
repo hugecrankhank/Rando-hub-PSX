@@ -11,6 +11,7 @@ const { prepareDiscZip } = require('./zipdisc');
 const { loadMapModel } = require('./sotn-map');
 const { PatchedImage } = require('./discpatch');
 const ff7 = require('./ff7/randomizer');
+const { createLicense } = require('./license');
 
 const ROOT = path.join(__dirname, '..');
 const UI_DIR = path.join(ROOT, 'ui');
@@ -132,6 +133,42 @@ function registerProtocol() {
   });
 }
 
+// ---------------------------------------------------------------- license
+// Licensed copies (downloaded from Rando Hub) carry license.json next to the .exe. Without a good license
+// the window shows the lock page instead of the games. See src/license.js.
+let license;
+let lastPage = 'index.html';
+function sendAll(ch, v) {
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(ch, v);
+}
+function showForLicense(v) {
+  if (!win || win.isDestroyed()) return;
+  const url = win.webContents.getURL();
+  const onLock = /\/locked\.html/.test(url);
+  if (!v.enabled && !onLock) {
+    const m = /app:\/\/ui\/([a-z0-9-]+\.html)/.exec(url);
+    if (m) lastPage = m[1];
+    if (popout && !popout.isDestroyed()) popout.close();
+    win.loadURL('app://ui/locked.html');
+  } else if (v.enabled && onLock && v.update.state !== 'downloading' && v.update.state !== 'installing' && v.update.state !== 'done') {
+    win.loadURL(`app://ui/${lastPage}`);
+  }
+}
+function initLicense() {
+  license = createLicense({
+    app,
+    fetch: (u, o) => net.fetch(u, o),
+    here: path.dirname(process.execPath),
+    dev: !app.isPackaged,
+    version: app.getVersion(),
+    log: (m) => console.log(m),
+    onChange: (v) => { sendAll('license:state', v); showForLicense(v); },
+  });
+}
+function needLicense() {
+  if (!license.enabled()) throw new Error(license.view().reason || 'PSX Rando Hub needs its license checked first.');
+}
+
 // ---------------------------------------------------------------- window
 function createWindow() {
   win = new BrowserWindow({
@@ -150,7 +187,7 @@ function createWindow() {
     },
   });
   Menu.setApplicationMenu(null);
-  win.loadURL('app://ui/index.html');
+  win.loadURL(license.enabled() ? 'app://ui/index.html' : 'app://ui/locked.html');
   win.on('closed', () => app.quit()); // closing the hub also closes the stream pop-out
   if (process.argv.includes('--devtools')) win.webContents.openDevTools({ mode: 'detach' });
   win.webContents.on('before-input-event', (_e, input) => {
@@ -177,6 +214,9 @@ function sanitize(s) {
 
 // ---------------------------------------------------------------- IPC
 function registerIpc() {
+  ipcMain.handle('license:get', () => license.view());
+  ipcMain.handle('license:check', () => license.check({ update: false }));
+  ipcMain.handle('license:updates', () => license.checkForUpdates());
   ipcMain.handle('settings:get', () => ({ ...settings, vendorDir: VENDOR_DIR, ejsCdn: EJS_CDN }));
   ipcMain.handle('settings:set', (_e, patch) => {
     settings = { ...settings, ...patch, games: { ...settings.games, ...(patch.games || {}) } };
@@ -210,6 +250,7 @@ function registerIpc() {
 
   // Point the emulator at a disc image and return what the tracker needs.
   ipcMain.handle('game:load', async (_e, { gameId, path: p, seedId }) => {
+    needLicense();
     if (!settings.biosPath || !fs.existsSync(settings.biosPath)) throw new Error('Pick your PlayStation BIOS in Settings first.');
     if (!p || !fs.existsSync(p)) throw new Error('Disc image not found.');
     const info = inspectDisc(p);
@@ -263,6 +304,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('rando:generate', async (e, opts) => {
+    needLicense();
     const vanilla = settings.games[opts.gameId] && settings.games[opts.gameId].vanillaBin;
     if (!vanilla || !fs.existsSync(vanilla)) throw new Error('Pick your vanilla SOTN Track 1 .bin in Settings first.');
     const seed = (opts.seed || '').trim() || randomSeed();
@@ -375,6 +417,7 @@ function registerFf7Ipc() {
   ipcMain.handle('ff7:presets', () => ({ presets: ff7.PRESETS, defaults: ff7.DEFAULT_OPTIONS }));
 
   ipcMain.handle('ff7:generate', async (e, opts) => {
+    needLicense();
     const discs = ff7Discs();
     if (!discs[0] || !fs.existsSync(discs[0])) throw new Error('Pick your Final Fantasy VII Disc 1 in Settings first.');
     const seed = (opts.seed || '').trim() || randomSeed();
@@ -399,6 +442,7 @@ function registerFf7Ipc() {
 
   // Start Disc N of a seed (or vanilla when seedId is null).
   ipcMain.handle('ff7:load', async (_e, { seedId, disc }) => {
+    needLicense();
     if (!settings.biosPath || !fs.existsSync(settings.biosPath)) throw new Error('Pick your PlayStation BIOS in Settings first.');
     const n = Math.max(1, Math.min(3, disc || 1));
     const p = ff7Discs()[n - 1];
@@ -463,6 +507,7 @@ function registerFf7Ipc() {
 let popout = null;
 let popoutState = null;
 function openPopout() {
+  if (!license.enabled()) return;
   if (popout && !popout.isDestroyed()) { popout.show(); popout.focus(); return; }
   const b = settings.popoutBounds || {};
   popout = new BrowserWindow({
@@ -484,9 +529,11 @@ function openPopout() {
 
 app.whenReady().then(() => {
   loadSettings();
+  initLicense();
   registerProtocol();
   registerIpc();
   createWindow();
+  license.start();
 });
 
 app.on('window-all-closed', () => app.quit());

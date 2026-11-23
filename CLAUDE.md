@@ -28,6 +28,8 @@ The `build-windows` workflow builds and smoke-tests the Windows app on every pus
 
 The tracker only reads game memory; it never writes it.
 
+Licensing: copies are handed out through Rando Hub's license (like Crowd Control+). `src/license.js` checks `license.json` (next to the .exe) with `/api/license/psx` at start and every 30 minutes, locks the window (`ui/locked.html`) when it fails, and installs updates from `/api/license/psx-download` at start and from Settings → Check for updates. `npm start` is the developer copy (no license). Bump `version` in `package.json` to publish: the Publish workflow uploads the zip to Rando Hub's R2 bucket.
+
 ## How to work (Claude via GitHub)
 
 - Robert usually asks for work from an issue or comment and isn't watching. Work on a new branch and open a pull request. **Never push to `main` yourself**: pushes to `main` deploy or publish.

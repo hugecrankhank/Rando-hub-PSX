@@ -19,6 +19,7 @@
   </div>
   <div class="now-playing" id="nowPlaying">No game loaded</div>
   <div class="status">
+    <span class="licensed" id="licensedTo"></span>
     <span class="pill" id="emuStatus" data-state="idle">Emulator idle</span>
     <span class="pill" id="trackStatus" data-state="off">Tracking off</span>
   </div>
@@ -172,6 +173,7 @@
         <div class="setting-head"><b>Seeds folder</b></div>
         <div class="path" id="seedsPath"></div>
       </div>
+      <div class="setting" id="updateSetting"></div>
       <div class="setting">
         <div class="setting-head"><b>Emulator core</b></div>
         <select id="coreSelect">
@@ -196,6 +198,7 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="license-ui.js"></script>
 <script src="memory.js"></script>
 <script src="ff7-track.js"></script>
 <script src="ff7.js"></script>

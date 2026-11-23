@@ -1,0 +1,82 @@
+name: Publish to Rando Hub
+
+# Builds the Windows app and puts the plain (unlicensed) zip in Rando Hub's download bucket (Cloudflare R2,
+# rando-hub-downloads/psx/PSX-Rando-Hub-v<version>.zip) whenever package.json has a new version.
+# Rando Hub adds license.json for each authorized license when they download it, and every copy already out
+# updates itself to it the next time it starts.
+#
+# Needs this repository's secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (the same ones as Rando Hub's).
+
+on:
+  push:
+    branches: [main]
+    paths: ['package.json']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Version
+        id: v
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Already on Rando Hub?
+        id: have
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then echo "No Cloudflare secrets in this repository (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID)."; exit 1; fi
+          export CLOUDFLARE_API_TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          if npx --yes wrangler@4 r2 object get "rando-hub-downloads/psx/PSX-Rando-Hub-v${{ steps.v.outputs.version }}.zip" --remote --file "$RUNNER_TEMP/have.zip" >/dev/null 2>&1; then
+            echo "v${{ steps.v.outputs.version }} is already on Rando Hub."; echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install, bundle SotN Randomizer, test
+        if: steps.have.outputs.skip != '1'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --no-audit --no-fund
+          npm run setup
+          npm test
+
+      - name: Build the app folder
+        if: steps.have.outputs.skip != '1'
+        run: npx electron-builder --win dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Smoke-test seed generation inside the packaged app
+        if: steps.have.outputs.skip != '1'
+        shell: bash
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: '"dist/win-unpacked/PSX Rando Hub.exe" scripts/smoke-packaged.js'
+
+      - name: Zip and upload
+        if: steps.have.outputs.skip != '1'
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          export CLOUDFLARE_API_TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          ZIP="PSX-Rando-Hub-v${{ steps.v.outputs.version }}.zip"
+          mv "dist/win-unpacked" "dist/PSX Rando Hub"
+          (cd dist && 7z a -tzip -mx=7 "$ZIP" "PSX Rando Hub" >/dev/null)
+          ls -l "dist/$ZIP"
+          npx --yes wrangler@4 r2 object put "rando-hub-downloads/psx/$ZIP" --file "dist/$ZIP" --content-type application/zip --remote
+          echo "Published v${{ steps.v.outputs.version }}: authorized licenses download it from /download/, and every copy updates itself when it starts."

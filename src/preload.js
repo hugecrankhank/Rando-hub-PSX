@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('hub', {
     return () => ipcRenderer.removeListener('rando:log', h);
   },
   listSeeds: (gameId) => invoke('seeds:list', gameId),
+  license: {
+    get: () => invoke('license:get'),
+    check: () => invoke('license:check'),
+    checkForUpdates: () => invoke('license:updates'),
+    onChange: (cb) => ipcRenderer.on('license:state', (_e, v) => cb(v)),
+  },
   ff7: {
     checkDiscs: () => invoke('ff7:checkDiscs'),
     names: () => invoke('ff7:names'),

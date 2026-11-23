@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PSX Rando Hub</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .lock { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; }
+  .lock-box { max-width: 520px; text-align: center; }
+  .lock-box h1 { font: 600 26px var(--serif); color: var(--gold); margin: 0 0 12px; }
+  .lock-box p { color: var(--muted); }
+  .lock-box .reason { color: var(--text); }
+  .lock-box .btns { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+  progress { width: 100%; height: 10px; margin-top: 14px; accent-color: var(--gold); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="crest" aria-hidden="true"></span>
+    <div><div class="brand-name">PSX Rando Hub</div><div class="brand-sub" id="ver"></div></div>
+  </div>
+</header>
+<main class="lock">
+  <div class="lock-box">
+    <h1 id="title">Checking your license…</h1>
+    <p class="reason" id="reason">One moment.</p>
+    <progress id="bar" max="100" value="0" hidden></progress>
+    <div class="btns">
+      <button class="btn primary" id="again" hidden>Check again</button>
+      <button class="btn" id="site" hidden>Open Rando Hub</button>
+    </div>
+    <p class="fine" id="who"></p>
+  </div>
+</main>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function show(v) {
+  $('ver').textContent = 'v' + v.version;
+  const u = v.update || {};
+  $('bar').hidden = !(u.state === 'downloading' || u.state === 'installing');
+  $('bar').value = u.progress || 0;
+  if (u.state === 'downloading') { $('title').textContent = `Updating to v${u.version}…`; $('reason').textContent = `Downloading: ${u.progress || 0}%`; }
+  else if (u.state === 'installing') { $('title').textContent = `Updating to v${u.version}…`; $('reason').textContent = 'Unpacking the new version.'; }
+  else if (u.state === 'done') { $('title').textContent = `Restarting with v${u.version}…`; $('reason').textContent = 'PSX Rando Hub reopens by itself in a few seconds.'; }
+  else if (v.state === 'checking') { $('title').textContent = 'Checking your license…'; $('reason').textContent = 'One moment.'; }
+  else if (!v.enabled) {
+    $('title').textContent = v.state === 'missing' ? 'This copy has no license' : 'PSX Rando Hub is locked';
+    $('reason').textContent = v.reason;
+  }
+  const busy = ['downloading', 'installing', 'done'].includes(u.state) || v.state === 'checking';
+  $('again').hidden = busy || v.enabled || v.state === 'missing';
+  $('site').hidden = busy || !v.server;
+  $('who').textContent = v.name ? `Licensed to ${v.name}${v.build ? ' · build ' + v.build : ''}` : '';
+}
+$('again').addEventListener('click', async () => { $('again').disabled = true; show(await hub.license.check()); $('again').disabled = false; });
+$('site').addEventListener('click', async () => { const v = await hub.license.get(); if (v.server) hub.openExternal(new URL('/download/', v.server).toString()); });
+hub.license.onChange(show);
+hub.license.get().then(show);
+</script>
+</body>
+</html>
