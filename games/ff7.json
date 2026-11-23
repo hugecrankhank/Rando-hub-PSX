@@ -1,0 +1,94 @@
+{
+  "id": "ff7",
+  "title": "Final Fantasy VII",
+  "region": "USA",
+  "discs": [
+    { "n": 1, "serial": "SCUS_941.63", "aliases": ["SCUS_941.63", "SCUS_94163"] },
+    { "n": 2, "serial": "SCUS_941.64", "aliases": ["SCUS_941.64", "SCUS_94164"] },
+    { "n": 3, "serial": "SCUS_941.65", "aliases": ["SCUS_941.65", "SCUS_94165"] }
+  ],
+  "_note": "Tracker tiles name materia as the game spells them. Ids are looked up from your own disc's KERNEL.BIN, so the 'id' values here are only a fallback.",
+  "tracker": {
+    "groups": [
+      {
+        "name": "Summons",
+        "items": [
+          { "name": "Choco/Mog", "short": "CHOC", "id": 74 },
+          { "name": "Shiva", "short": "SHIV", "id": 75 },
+          { "name": "Ifrit", "short": "IFRT", "id": 76 },
+          { "name": "Ramuh", "short": "RAMH", "id": 77 },
+          { "name": "Titan", "short": "TITN", "id": 78 },
+          { "name": "Odin", "short": "ODIN", "id": 79 },
+          { "name": "Leviathan", "short": "LEVI", "id": 80 },
+          { "name": "Bahamut", "short": "BAHA", "id": 81, "key": true },
+          { "name": "Kujata", "short": "KUJA", "id": 82 },
+          { "name": "Alexander", "short": "ALEX", "id": 83 },
+          { "name": "Phoenix", "short": "PHNX", "id": 84, "key": true },
+          { "name": "Neo Bahamut", "short": "NEOB", "id": 85, "key": true },
+          { "name": "Hades", "short": "HADS", "id": 86 },
+          { "name": "Typoon", "short": "TYPH", "id": 87 },
+          { "name": "Bahamut ZERO", "short": "BZRO", "id": 88, "key": true },
+          { "name": "Knights of Round", "short": "KOTR", "id": 89, "key": true }
+        ]
+      },
+      {
+        "name": "Command",
+        "items": [
+          { "name": "Steal", "short": "STEL", "id": 37 },
+          { "name": "Sense", "short": "SNSE", "id": 38 },
+          { "name": "Throw", "short": "THRW", "id": 40 },
+          { "name": "Morph", "short": "MRPH", "id": 41 },
+          { "name": "Deathblow", "short": "DBLW", "id": 42 },
+          { "name": "Manipulate", "short": "MANI", "id": 43 },
+          { "name": "Mime", "short": "MIME", "id": 44, "key": true },
+          { "name": "Enemy Skill", "short": "ESKL", "id": 45, "key": true },
+          { "name": "W-Magic", "short": "WMAG", "id": 20, "key": true },
+          { "name": "W-Summon", "short": "WSUM", "id": 21, "key": true },
+          { "name": "W-Item", "short": "WITM", "id": 22, "key": true }
+        ]
+      },
+      {
+        "name": "Support & independent",
+        "items": [
+          { "name": "All", "short": "ALL", "id": 24 },
+          { "name": "Quadra Magic", "short": "QUAD", "id": 36, "key": true },
+          { "name": "HP Absorb", "short": "HPAB", "id": 29 },
+          { "name": "MP Absorb", "short": "MPAB", "id": 28 },
+          { "name": "MP Turbo", "short": "MPTB", "id": 27 },
+          { "name": "Added Effect", "short": "ADDE", "id": 31 },
+          { "name": "Elemental", "short": "ELEM", "id": 30 },
+          { "name": "Final Attack", "short": "FATK", "id": 33 },
+          { "name": "Counter Attack", "short": "CNTR", "id": 13 },
+          { "name": "Mega All", "short": "MEGA", "id": 12, "key": true },
+          { "name": "Cover", "short": "COVR", "id": 17 },
+          { "name": "Long Range", "short": "LONG", "id": 11 },
+          { "name": "HP Plus", "short": "HP+", "id": 1 },
+          { "name": "Underwater", "short": "UWTR", "id": 18 },
+          { "name": "HP<->MP", "short": "HPMP", "id": 19 }
+        ]
+      },
+      {
+        "name": "Magic",
+        "items": [
+          { "name": "Restore", "short": "REST", "id": 53 },
+          { "name": "Revive", "short": "REVI", "id": 55 },
+          { "name": "Heal", "short": "HEAL", "id": 54 },
+          { "name": "Barrier", "short": "BARR", "id": 62 },
+          { "name": "Time", "short": "TIME", "id": 65 },
+          { "name": "Comet", "short": "COMT", "id": 64 },
+          { "name": "Contain", "short": "CONT", "id": 69 },
+          { "name": "Full Cure", "short": "FCUR", "id": 70, "key": true },
+          { "name": "Shield", "short": "SHLD", "id": 71 },
+          { "name": "Ultima", "short": "ULTI", "id": 72, "key": true }
+        ]
+      }
+    ],
+    "bosses": [
+      "Guard Scorpion", "Air Buster", "Aps", "Reno", "Hundred Gunner & Heli Gunner", "Rufus & Dark Nation",
+      "Motor Ball", "Bottomswell", "Jenova·BIRTH", "Dyne", "Materia Keeper", "Palmer", "Rude (Gongaga)",
+      "Gi Nattak", "Lost Number", "Red Dragon", "Demons Gate", "Jenova·LIFE", "Schizo", "Jenova·DEATH",
+      "Carry Armor", "Diamond Weapon", "Proud Clod", "Jenova·SYNTHESIS", "Bizarro·Sephiroth", "Safer·Sephiroth"
+    ],
+    "optionalBosses": ["Ultimate Weapon", "Ruby Weapon", "Emerald Weapon"]
+  }
+}

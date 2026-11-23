@@ -19,6 +19,12 @@ function crc32File(p) {
   });
 }
 
+async function crc32Stream(stream) {
+  let crc = 0;
+  for await (const chunk of stream) crc = zlib.crc32(chunk, crc);
+  return crc >>> 0;
+}
+
 async function cachedCrc(p, cacheFile) {
   const st = fs.statSync(p);
   const key = `${p}|${st.size}|${st.mtimeMs}`;
@@ -69,15 +75,16 @@ function centralHeader(nameBuf, crc, size, offset) {
  * Prepare a zip for `binPath`. Returns { size, stream() } where stream() yields
  * a fresh web ReadableStream each call.
  */
-async function prepareDiscZip(binPath, cacheFile) {
-  const binSize = fs.statSync(binPath).size;
+async function prepareDiscZip(binPath, cacheFile, image = null) {
+  // `image` (a PatchedImage) serves vanilla disc + seed patch instead of the file as-is.
+  const binSize = image ? image.size : fs.statSync(binPath).size;
   if (binSize >= 0xffffffff) throw new Error('Disc image too large for zip packaging.');
   const base = 'game';
   const binName = Buffer.from(`${base}.bin`);
   const cueName = Buffer.from(`${base}.cue`);
   const cue = Buffer.from(`FILE "${base}.bin" BINARY\r\n  TRACK 01 MODE2/2352\r\n    INDEX 01 00:00:00\r\n`);
   const cueCrc = zlib.crc32(cue) >>> 0;
-  const binCrc = await cachedCrc(binPath, cacheFile);
+  const binCrc = image ? await crc32Stream(image.stream()) : await cachedCrc(binPath, cacheFile);
 
   const cueLocal = localHeader(cueName, cueCrc, cue.length);
   const binLocal = localHeader(binName, binCrc, binSize);
@@ -100,7 +107,8 @@ async function prepareDiscZip(binPath, cacheFile) {
 
   async function* parts() {
     yield head;
-    for await (const chunk of fs.createReadStream(binPath, { highWaterMark: 4 * 1024 * 1024 })) yield chunk;
+    const src = image ? image.stream() : fs.createReadStream(binPath, { highWaterMark: 4 * 1024 * 1024 });
+    for await (const chunk of src) yield chunk;
     yield tail;
   }
   return { size, stream: () => Readable.toWeb(Readable.from(parts())) };

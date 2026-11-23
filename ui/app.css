@@ -188,3 +188,21 @@ a { color: var(--gold); }
 #gameOptsCount { color: var(--gold); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .chip { font-size: 10.5px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+
+/* game switcher */
+.game-switch { background: transparent; border: none; color: var(--muted); font: 12.5px var(--sans); padding: 0; cursor: pointer; margin-left: -3px; }
+.game-switch:hover { color: var(--gold); }
+.game-switch option { background: var(--bg2); color: var(--text); }
+
+/* Final Fantasy VII page: mako green instead of blood red */
+body.ff7 { --blood: #1f6b52; --blood-hi: #2f9a76; --gold: #8fd1b8; --gold-dim: #3e6b5c; --owned: #7fe0b8; }
+body.ff7 .crest { background: radial-gradient(circle, #5fe3b0 0 30%, transparent 32%), var(--bg2); }
+.party { margin: 8px 0 12px; }
+.party h4 { margin: 0 0 6px; }
+.party .member { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 4px 8px; border: 1px solid var(--line); margin-bottom: 4px; background: var(--bg2); }
+.party .member b { font-weight: 600; }
+.party .member .lv { color: var(--gold); font-variant-numeric: tabular-nums; }
+.party .member small { grid-column: 1 / -1; color: var(--muted); }
+.party .others { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.row.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stage-bar .seg { display: inline-flex; }

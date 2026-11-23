@@ -1,0 +1,156 @@
+// FF7 seed generator tests on a made-up disc (see fake-ff7.js).
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { buildDisc } = require('./fake-ff7');
+const { Disc } = require('../src/disc');
+const { PatchedImage, loadPatch } = require('../src/discpatch');
+const { verifySector } = require('../src/cdsector');
+const kernel = require('../src/ff7/kernel');
+const scene = require('../src/ff7/scene');
+const ff7 = require('../src/ff7/randomizer');
+const { decode } = require('../src/ff7/text');
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ff7-test-'));
+const discs = [1, 2, 3].map((n) => {
+  const p = path.join(tmp, `disc${n}.bin`);
+  fs.writeFileSync(p, buildDisc({ serial: ff7.SERIALS[n - 1] }));
+  return p;
+});
+
+function filesOf(binPath) {
+  const d = new Disc(binPath);
+  try {
+    const k = d.findFile('INIT/KERNEL.BIN'), s = d.findFile('BATTLE/SCENE.BIN');
+    return { kernel: kernel.parse(d.readExtent(k.lba, k.size)), scene: scene.parse(d.readExtent(s.lba, s.size)) };
+  } finally { d.close(); }
+}
+
+const tests = [];
+const test = (name, fn) => tests.push([name, fn]);
+
+test('kernel + scene parse and pass validation', () => {
+  const info = ff7.inspect(discs[0]);
+  assert.strictEqual(info.exeName, 'SCUS_941.63');
+  assert.deepStrictEqual(info.kernel.problems, []);
+  assert.ok(Object.values(info.kernel.ok).every(Boolean), JSON.stringify(info.kernel.ok));
+  assert.ok(info.scene.ok);
+  assert.strictEqual(info.names.materia[53], 'Restore');
+  assert.strictEqual(info.names.weapons[5], 'Weapon 5');
+});
+
+test('unchanged kernel rebuilds byte-for-byte', () => {
+  const { kernel: k } = filesOf(discs[0]);
+  const d = new Disc(discs[0]);
+  const rec = d.findFile('INIT/KERNEL.BIN');
+  const orig = d.readExtent(rec.lba, rec.size);
+  d.close();
+  assert.ok(kernel.build(k).equals(orig));
+});
+
+test('generate patches all three discs and the result reads back', async () => {
+  const out = path.join(tmp, 'seed1');
+  const res = await ff7.generate({
+    discs, outDir: out, seed: 'TESTSEED',
+    options: { startMateria: 'random', startGear: 'fair', drops: 'shuffle', slots: 'shuffle', expMult: 2, apMult: 1, gilMult: 1 },
+  });
+  assert.strictEqual(res.discFiles.filter(Boolean).length, 3);
+  assert.ok(fs.readFileSync(path.join(out, 'spoiler.txt'), 'utf8').includes('Starting party'));
+
+  const vanilla = filesOf(discs[0]);
+  for (let i = 0; i < 3; i++) {
+    const exported = path.join(tmp, `patched${i + 1}.bin`);
+    await new PatchedImage(discs[i], res.discFiles[i]).exportTo(exported);
+    assert.strictEqual(fs.statSync(exported).size, fs.statSync(discs[i]).size);
+    const got = filesOf(exported);
+
+    // Starting materia: valid ids, never Master/KotR, and fits the slots.
+    const names = kernel.allNames(got.kernel);
+    const w = got.kernel.sections[kernel.SECTION.weapons].data;
+    for (let c = 0; c < 9; c++) {
+      const { buf, at } = kernel.charRecord(got.kernel, c);
+      const wi = buf[at + kernel.CHAR.weapon];
+      const mask = w.readUInt16LE(wi * 44 + kernel.WEAPON.equip);
+      assert.ok(mask & (1 << c), `char ${c} got a weapon they can't equip`);
+      const slots = kernel.countSlots([...w.subarray(wi * 44 + 0x1c, wi * 44 + 0x24)]);
+      for (let j = 0; j < 8; j++) {
+        const v = buf.readUInt32LE(at + 0x40 + j * 4);
+        if (v === 0xffffffff) continue;
+        assert.ok(j < slots, `materia in slot ${j} but weapon has ${slots}`);
+        const name = names.materia[v & 0xff];
+        assert.ok(name && !/^Master|Knights/.test(name), `bad materia ${name}`);
+      }
+    }
+    // Drops shuffled: same multiset of items as vanilla.
+    const items = (s) => {
+      const seen = new Map();
+      for (const { scene: sc } of scene.scenes(s)) for (const e of scene.enemies(sc)) {
+        if (seen.has(e.id)) continue;
+        seen.set(e.id, scene.readEnemy(sc.data, e.at));
+      }
+      return seen;
+    };
+    const vi = items(vanilla.scene), gi = items(got.scene);
+    const flat = (m) => [...m.values()].flatMap((e) => e.slots.map((x) => x.item)).sort((a, b) => a - b);
+    assert.deepStrictEqual(flat(gi), flat(vi));
+    // EXP doubled everywhere, AP unchanged.
+    for (const [id, e] of gi) {
+      assert.strictEqual(e.exp, vi.get(id).exp * 2);
+      assert.strictEqual(e.ap, vi.get(id).ap);
+    }
+    // Every patched sector has valid error codes.
+    const p = loadPatch(res.discFiles[i]);
+    for (const s of p.sectors.values()) assert.ok(verifySector(Buffer.from(s)));
+  }
+});
+
+test('same seed + options = identical patches; different seed differs', async () => {
+  const opts = { startMateria: 'chaos', startGear: 'chaos', drops: 'random', slots: 'shuffle' };
+  const a = await ff7.generate({ discs, outDir: path.join(tmp, 'a'), seed: 'SAME', options: opts });
+  const b = await ff7.generate({ discs, outDir: path.join(tmp, 'b'), seed: 'SAME', options: opts });
+  const c = await ff7.generate({ discs, outDir: path.join(tmp, 'c'), seed: 'OTHER', options: opts });
+  assert.ok(fs.readFileSync(a.discFiles[0]).equals(fs.readFileSync(b.discFiles[0])));
+  assert.ok(!fs.readFileSync(a.discFiles[0]).equals(fs.readFileSync(c.discFiles[0])));
+});
+
+test('random materia always includes a Restore', async () => {
+  for (const seed of ['R1', 'R2', 'R3', 'R4', 'R5']) {
+    const res = await ff7.generate({ discs: [discs[0]], outDir: path.join(tmp, seed), seed, options: { startMateria: 'random', drops: 'vanilla' } });
+    const exported = path.join(tmp, `${seed}.bin`);
+    await new PatchedImage(discs[0], res.discFiles[0]).exportTo(exported);
+    const init = filesOf(exported).kernel.sections[kernel.SECTION.init].data;
+    const all = [];
+    for (let c = 0; c < 9; c++) for (let j = 0; j < 16; j++) all.push(init.readUInt32LE(c * 0x84 + 0x40 + j * 4));
+    for (let j = 0; j < 200; j++) all.push(init.readUInt32LE(0x728 + j * 4));
+    assert.ok(all.some((v) => v === 53), `no Restore in seed ${seed}`);
+  }
+});
+
+test('vanilla options change nothing', async () => {
+  const res = await ff7.generate({ discs: [discs[0]], outDir: path.join(tmp, 'v'), seed: 'X', options: { startMateria: 'vanilla', startGear: 'vanilla', drops: 'vanilla', slots: 'vanilla' } });
+  assert.strictEqual(loadPatch(res.discFiles[0]).sectors.size, 0);
+});
+
+test('patch refuses a different disc image', () => {
+  const res = path.join(tmp, 'seed1', 'disc1.prhp');
+  const other = path.join(tmp, 'short.bin');
+  fs.writeFileSync(other, fs.readFileSync(discs[0]).subarray(0, 2352 * 30));
+  assert.throws(() => new PatchedImage(other, res), /different copy/);
+});
+
+test('text decoder', () => {
+  assert.strictEqual(decode(Buffer.from([0x23, 0x4c, 0x4f, 0x55, 0x44, 0xff])), 'Cloud');
+});
+
+(async () => {
+  let failed = 0;
+  for (const [name, fn] of tests) {
+    try { await fn(); console.log('ok -', name); } catch (e) { failed++; console.error('FAIL -', name, '\n', e); }
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
+  if (failed) process.exit(1);
+  console.log('ff7 tests passed');
+})();

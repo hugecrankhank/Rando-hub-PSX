@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PSX Rando Hub — Final Fantasy VII</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="ff7">
+<header class="topbar">
+  <div class="brand">
+    <span class="crest" aria-hidden="true"></span>
+    <div>
+      <div class="brand-name">PSX Rando Hub</div>
+      <select class="game-switch" id="gameSwitch" title="Switch game">
+        <option value="sotn">Castlevania: Symphony of the Night</option>
+        <option value="ff7" selected>Final Fantasy VII</option>
+      </select>
+    </div>
+  </div>
+  <div class="now-playing" id="nowPlaying">No game loaded</div>
+  <div class="status">
+    <span class="pill" id="emuStatus" data-state="idle">Emulator idle</span>
+    <span class="pill" id="trackStatus" data-state="off">Tracking off</span>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="stage">
+    <div class="screen" id="screen">
+      <div class="empty" id="emptyState">
+        <h1>Welcome to Midgar</h1>
+        <p>Generate a seed or play the vanilla game. Your BIOS and discs are loaded from your PC.</p>
+        <div class="empty-actions">
+          <button class="btn primary" id="quickSeed">Generate &amp; play a seed</button>
+          <button class="btn" id="playVanilla">Play vanilla</button>
+        </div>
+        <ul class="checklist" id="setupChecklist"></ul>
+      </div>
+      <iframe id="emuFrame" title="Emulator" hidden allow="gamepad; fullscreen; autoplay"></iframe>
+    </div>
+    <div class="stage-bar">
+      <button class="btn small" id="stopGame" disabled>Stop</button>
+      <button class="btn small" id="fullscreen" disabled>Fullscreen</button>
+      <span class="seg" id="discBtns" title="Change disc. Save to your memory card in-game first.">
+        <button class="seg-btn" data-disc="1" disabled>Disc 1</button>
+        <button class="seg-btn" data-disc="2" disabled>Disc 2</button>
+        <button class="seg-btn" data-disc="3" disabled>Disc 3</button>
+      </span>
+      <span class="pill" id="displayFps" data-state="off" title="How many frames per second your screen is actually being shown. Should be 60 or higher.">Display — fps</span>
+      <span class="hint">When the game asks for the next disc, save, then press that disc's button.</span>
+    </div>
+  </section>
+
+  <aside class="side">
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="tracker">Tracker</button>
+      <button role="tab" class="tab" data-tab="seeds">Seeds</button>
+      <button role="tab" class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- TRACKER -->
+    <div class="panel active" id="panel-tracker">
+      <div class="timer">
+        <div class="time" id="timerDisplay">0:00:00.0</div>
+        <div class="timer-btns">
+          <button class="btn small" id="timerStart">Start</button>
+          <button class="btn small" id="timerReset">Reset</button>
+        </div>
+      </div>
+      <div class="counts">
+        <div><span id="materiaCount">0</span><small id="materiaTotal">/0 materia</small></div>
+        <div><span id="keyCount">0</span><small id="keyTotal">/0 key</small></div>
+        <div><span id="gilCount">—</span><small>gil</small></div>
+      </div>
+      <div class="party" id="party"><p class="fine">Party and levels appear here once a game is loaded.</p></div>
+      <div id="trackerGroups"></div>
+      <details class="bosses">
+        <summary>Bosses</summary>
+        <div id="bossList"></div>
+      </details>
+      <div class="tracker-foot">
+        <label class="toggle"><input type="checkbox" id="autoTrack" checked> Auto-track from game memory</label>
+        <button class="btn small ghost" id="trackerReset">Clear tracker</button>
+      </div>
+      <p class="fine" id="liveLine"></p>
+      <p class="fine">Materia, party and levels track automatically. Click a tile to mark it yourself; right-click to clear.</p>
+    </div>
+
+    <!-- SEEDS -->
+    <div class="panel" id="panel-seeds">
+      <form id="seedForm" class="form">
+        <label>Preset
+          <select id="preset"></select>
+        </label>
+        <label>Seed
+          <div class="row">
+            <input id="seedInput" placeholder="Leave blank for random" autocomplete="off" spellcheck="false">
+            <button type="button" class="btn small" id="diceSeed" title="Random seed">Roll</button>
+          </div>
+        </label>
+        <details class="game-opts" id="optsBox" open>
+          <summary>Options</summary>
+          <label>Starting materia
+            <select data-opt="startMateria">
+              <option value="vanilla">Vanilla</option>
+              <option value="random">Random (fair, always a Restore)</option>
+              <option value="chaos">Chaos (anything but Master materia)</option>
+            </select>
+          </label>
+          <label>Starting weapons &amp; armor
+            <select data-opt="startGear">
+              <option value="vanilla">Vanilla</option>
+              <option value="fair">Random (lower-tier gear)</option>
+              <option value="chaos">Chaos (any gear the character can use)</option>
+            </select>
+          </label>
+          <label>Enemy drops &amp; steals
+            <select data-opt="drops">
+              <option value="vanilla">Vanilla</option>
+              <option value="balanced">Shuffled among enemies of similar level</option>
+              <option value="shuffle">Shuffled across the whole game</option>
+              <option value="random">Random (any item from the game's drop pool)</option>
+            </select>
+          </label>
+          <label class="toggle"><input type="checkbox" data-opt="morphs"> Include Morph items</label>
+          <label>Weapon &amp; armor materia slots
+            <select data-opt="slots">
+              <option value="vanilla">Vanilla</option>
+              <option value="shuffle">Shuffled (weapons among the same character's)</option>
+            </select>
+          </label>
+          <div class="row three">
+            <label>EXP <select data-opt="expMult"></select></label>
+            <label>AP <select data-opt="apMult"></select></label>
+            <label>Gil <select data-opt="gilMult"></select></label>
+          </div>
+        </details>
+        <label class="toggle"><input type="checkbox" id="spoilerOn" checked> Write a spoiler log</label>
+        <button class="btn primary wide" id="generateBtn" type="submit">Generate seed</button>
+      </form>
+      <p class="fine" id="featureNote"></p>
+      <pre class="log" id="seedLog" hidden></pre>
+      <h3 class="section">Your seeds</h3>
+      <ul class="seed-list" id="seedList"></ul>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="panel" id="panel-settings">
+      <div class="setting">
+        <div class="setting-head"><b>PlayStation BIOS</b><span class="badge" id="biosBadge"></span></div>
+        <div class="path" id="biosPath">Not set</div>
+        <button class="btn small" id="pickBios">Choose BIOS file…</button>
+        <p class="fine">A 512 KB PS1 BIOS dump, e.g. SCPH-1001 / SCPH-5501 (USA). Shared with the other games.</p>
+      </div>
+      <div class="setting" data-disc-setting="1">
+        <div class="setting-head"><b>Disc 1</b><span class="badge"></span></div>
+        <div class="path">Not set</div>
+        <button class="btn small">Choose Disc 1 .bin…</button>
+      </div>
+      <div class="setting" data-disc-setting="2">
+        <div class="setting-head"><b>Disc 2</b><span class="badge"></span></div>
+        <div class="path">Not set</div>
+        <button class="btn small">Choose Disc 2 .bin…</button>
+      </div>
+      <div class="setting" data-disc-setting="3">
+        <div class="setting-head"><b>Disc 3</b><span class="badge"></span></div>
+        <div class="path">Not set</div>
+        <button class="btn small">Choose Disc 3 .bin…</button>
+      </div>
+      <p class="fine">Your unmodified USA discs (SCUS-94163, -94164, -94165), as .bin (or pick the .cue). Unzip them first. Seeds are built from these and never change them.</p>
+      <div class="setting">
+        <div class="setting-head"><b>Seeds folder</b></div>
+        <div class="path" id="seedsPath"></div>
+      </div>
+      <div class="setting">
+        <div class="setting-head"><b>Emulator core</b></div>
+        <select id="coreSelect">
+          <option value="psx">PCSX ReARMed (fast, default)</option>
+          <option value="mednafen_psx_hw">Beetle PSX HW (accurate)</option>
+        </select>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="spoilerDialog">
+  <form method="dialog">
+    <h3 id="spoilerTitle">Spoiler log</h3>
+    <div class="spoiler-wrap">
+      <pre id="spoilerText" class="blurred"></pre>
+      <button type="button" class="btn" id="revealSpoiler">Reveal spoilers</button>
+    </div>
+    <div class="dialog-actions"><button class="btn">Close</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="memory.js"></script>
+<script src="ff7-track.js"></script>
+<script src="ff7.js"></script>
+</body>
+</html>
