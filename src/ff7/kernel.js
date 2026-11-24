@@ -44,7 +44,8 @@ function parse(buf) {
   return { sections, length: buf.length, used: p };
 }
 
-function build(k) {
+// `room`: how far the file may grow (the end of its last sector on the disc); by default its original size.
+function build(k, room = k.length) {
   const pack = (squeeze) => {
     const parts = [];
     for (const s of k.sections) {
@@ -65,13 +66,13 @@ function build(k) {
   };
   let out = pack(false);
   if (out.length > k.length) out = pack(true);
-  if (out.length > k.length) {
-    const e = new Error(`KERNEL.BIN grew by ${out.length - k.length} bytes and won't fit on the disc.`);
-    e.kernelTooBig = out.length - k.length;
+  if (out.length > room) {
+    const e = new Error(`KERNEL.BIN grew by ${out.length - room} bytes more than there's room for on the disc.`);
+    e.kernelTooBig = out.length - room;
     throw e;
   }
-  // Same size as the original so the game's file table stays right; zero fill.
-  return Buffer.concat([out, Buffer.alloc(k.length - out.length)]);
+  // At least the original size (zero fill), so nothing else moves; longer only into the last sector's spare room.
+  return out.length >= k.length ? out : Buffer.concat([out, Buffer.alloc(k.length - out.length)]);
 }
 
 const sec = (k, i) => k.sections[i];

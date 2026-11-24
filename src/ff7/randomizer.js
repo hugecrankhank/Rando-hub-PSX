@@ -446,6 +446,9 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
 
   const names = kernel.allNames(k1);
   const files = discs.map((p, i) => (!p ? null : i === 0 ? f1 : readGameFiles(p)));
+  // KERNEL.BIN may grow into the unused end of its last 2048-byte sector: the drive reads whole sectors, so
+  // those bytes are loaded with the file anyway. Its directory size is updated to match.
+  const kernelRoom = (i) => Math.ceil(files[i].kernelRec.size / 2048) * 2048;
   const kernelFor = (i) => {
     const k = kernel.parse(files[i].kernelBuf);
     if (i === 0) k.layout = k1.layout; else kernel.validate(k);
@@ -470,7 +473,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
       if (!files[i]) continue;
       const k = kernelFor(i);
       applyKernel(k, plans);
-      try { kernel.build(k); } catch (e) { if (!e.kernelTooBig) throw e; tooBig = e.kernelTooBig; }
+      try { kernel.build(k, kernelRoom(i)); } catch (e) { if (!e.kernelTooBig) throw e; tooBig = e.kernelTooBig; }
     }
     if (!tooBig) break;
     const fb = FALLBACKS.find(([key]) => opts[key] !== 'vanilla');
@@ -493,7 +496,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     const s = scene.parse(f.sceneBuf);
     applyKernel(k, plans);
     applyScene(s, plans, opts);
-    const kOut = kernel.build(k);
+    const kOut = kernel.build(k, kernelRoom(i));
     const sOut = scene.build(s);
     if (sOut.reverted.length) {
       const set = new Set(sOut.reverted), who = new Set();
@@ -514,6 +517,10 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     try {
       const pb = new PatchBuilder(disc);
       pb.writeFile(f.kernelRec, kOut);
+      if (kOut.length > f.kernelRec.size) {
+        pb.setFileSize(f.kernelRec, kOut.length);
+        log(`Disc ${i + 1}: KERNEL.BIN uses ${kOut.length - f.kernelRec.size} bytes of the spare room in its last sector.`);
+      }
       pb.writeFile(f.sceneRec, sOut.buf);
       if (pb.eccChecked === false) log(`Note: Disc ${i + 1}'s sectors have non-standard error codes; that's fine for emulators.`);
       const out = path.join(outDir, `disc${i + 1}.prhp`);
