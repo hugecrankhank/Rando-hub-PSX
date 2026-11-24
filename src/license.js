@@ -8,9 +8,10 @@
 //   no answer (offline)  it keeps working for 3 days from its last good check, then locks until it can check again
 // Nothing else is sent: the token, this copy's version and its build.
 //
-// An update (GET <server>/api/license/psx-download?token=…) is the same zip as the download, with the same
-// license.json. It's unpacked to a temporary folder, then a small script waits for the app to close, copies the new
-// files over this folder and starts the app again. Settings, seeds and saves live in the user folder and stay.
+// An update (GET <server>/api/license/psx-download?token=…) is the same zip as the download: "PSX Rando Hub Setup.exe"
+// with the same license.json beside it. It's unpacked to a temporary folder, then a small script waits for the app to
+// close and runs the installer silently (/S --force-run: same folder as before, copies license.json, reopens the app).
+// Settings, seeds and saves live in the user folder and stay.
 //
 // Running from the repository (npm start) needs no license.
 'use strict';
@@ -22,7 +23,7 @@ const { execFile, spawn } = require('child_process');
 
 const GRACE = 3 * 24 * 3600 * 1000;
 const EVERY = 30 * 60 * 1000;
-const EXE = 'PSX Rando Hub.exe';
+const SETUP = 'PSX Rando Hub Setup.exe';
 
 const newer = (a, b) => {
   const x = String(a || '').split('.').map(Number), y = String(b || '').split('.').map(Number);
@@ -143,20 +144,22 @@ function createLicense({ app, fetch, here, dev, version, onChange = () => {}, lo
       fs.mkdirSync(x);
       await new Promise((resolve, reject) => execFile('tar', ['-xf', zip, '-C', x], { windowsHide: true }, (e) => (e ? reject(new Error('couldn’t unpack the update: ' + e.message)) : resolve())));
       const src = path.join(x, 'PSX Rando Hub');
-      if (!fs.existsSync(path.join(src, EXE))) throw new Error('the download isn’t PSX Rando Hub');
+      const setup = path.join(src, SETUP);
+      if (!fs.existsSync(setup)) throw new Error('the download isn’t the PSX Rando Hub installer');
+      if (!fs.existsSync(path.join(src, 'license.json'))) throw new Error('the download has no license file');
       fs.rmSync(zip, { force: true });
 
-      // The swap happens after we close: a running .exe can't be replaced.
+      // The installer runs after we close: a running .exe can't be replaced.
       const script = path.join(stage, 'install-update.cmd');
       const logFile = path.join(app.getPath('userData'), 'last-update.log');
       fs.writeFileSync(script, [
         '@echo off',
         `:wait`,
         `tasklist /FI "PID eq ${process.pid}" 2>NUL | find "${process.pid}" >NUL && (timeout /t 1 /nobreak >NUL & goto wait)`,
-        `robocopy "${src}" "${here}" /E /R:5 /W:1 /NP > "${logFile}"`,
-        `if %ERRORLEVEL% GEQ 8 echo Update copy failed with code %ERRORLEVEL% >> "${logFile}"`,
-        `start "" "${path.join(here, EXE)}"`,
-        `timeout /t 3 /nobreak >NUL`,
+        `echo Installing PSX Rando Hub ${v} > "${logFile}"`,
+        `"${setup}" /S --force-run`,
+        `echo Installer finished with code %ERRORLEVEL% >> "${logFile}"`,
+        `timeout /t 5 /nobreak >NUL`,
         `rmdir /s /q "${stage}"`,
         '',
       ].join('\r\n'));
