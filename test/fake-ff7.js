@@ -44,6 +44,11 @@ function kernelSections(opts = {}) {
     init[at + 0x1c] = c * 14 + weaponBase; init[at + 0x1d] = 0; init[at + 0x1e] = 0xff;
     init.fill(0xff, at + 0x40, at + 0x80);
   }
+  // Like the real data: at the start, slots 6 and 7 are Young Cloud (id 9) and Sephiroth (id 10) for the
+  // flashback; Young Cloud has Cloud's first weapon, Sephiroth one of his own.
+  init[6 * 0x84] = 9; init[6 * 0x84 + 0x1c] = 0 + weaponBase;
+  init[7 * 0x84] = 10; init[7 * 0x84 + 0x1c] = 127 + weaponBase;
+  init.writeUInt32LE(49, 7 * 0x84 + 0x40); // Sephiroth: Fire
   init.writeUInt32LE(50, 0x40); init.writeUInt32LE(52, 0x44); // Cloud: Ice, Lightning
   init.writeUInt32LE(53, 0x84 + 0x40); // Barret: Restore
   init.fill(0xff, 0x4a8, 0x4a8 + 640);
@@ -57,7 +62,7 @@ function kernelSections(opts = {}) {
     w[at + 4] = 10 + i;
     w[at + 6] = 1;
     const owner = Math.min(8, Math.floor(i / 14));
-    w.writeUInt16LE(1 << owner, at + equipAt);
+    w.writeUInt16LE(i === 0 ? 0x201 : i === 127 ? 0x400 : 1 << owner, at + equipAt);
     Buffer.from(i % 3 === 0 ? [2, 3, 1, 0, 0, 0, 0, 0] : i % 3 === 1 ? [1, 0, 0, 0, 0, 0, 0, 0] : [2, 3, 2, 3, 0, 0, 0, 0]).copy(w, at + 0x1c);
   }
   s[5] = w;

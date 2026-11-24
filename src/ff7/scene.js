@@ -50,8 +50,12 @@ function build(s) {
   const reverted = [];
   let idx = 0;
   s.blocks.forEach((blk, b) => {
-    const tryLayout = (useNew) => {
-      const bodies = blk.scenes.map((sc, i) => (useNew[i] ? writeMember(sc.header, sc.data) : sc.original));
+    // (Recompressed copies of the block's untouched scenes, kept only where smaller: room for the changed ones.)
+    let squeezed = null;
+    const squeeze = () => blk.scenes.map((sc) => { const re = writeMember(sc.header, sc.data); return re.length < sc.original.length ? re : sc.original; });
+    const tryLayout = (useNew, tight = false) => {
+      const fresh = blk.scenes.map((sc, i) => (useNew[i] ? writeMember(sc.header, sc.data) : null));
+      const bodies = blk.scenes.map((sc, i) => fresh[i] || (tight ? squeezed[i] : sc.original));
       let pos = 0x40;
       const offs = [];
       for (const body of bodies) {
@@ -63,12 +67,13 @@ function build(s) {
     };
     const useNew = blk.scenes.map((sc) => sc.dirty);
     let lay = tryLayout(useNew);
-    // Too big: revert the dirty scenes one at a time, last first.
+    if (lay.size > BLOCK) { squeezed = squeeze(); lay = tryLayout(useNew, true); }
+    // Still too big: revert the dirty scenes one at a time, last first.
     for (let i = blk.scenes.length - 1; lay.size > BLOCK && i >= 0; i--) {
       if (!useNew[i]) continue;
       useNew[i] = false;
       reverted.push(idx + i);
-      lay = tryLayout(useNew);
+      lay = tryLayout(useNew, true);
     }
     const base = b * BLOCK;
     for (let i = 0; i < 16; i++) out.writeUInt32LE(i < lay.offs.length ? lay.offs[i] / 4 : 0xffffffff, base + i * 4);
