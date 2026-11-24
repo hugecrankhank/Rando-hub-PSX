@@ -43,6 +43,19 @@ class PatchBuilder {
     }
   }
 
+  // Change a file's size in its directory record (both byte orders), e.g. after it grew into the spare room
+  // of its last sector.
+  setFileSize(rec, size) {
+    if (rec.dirLba == null) throw new Error(`${rec.name}: directory record position unknown.`);
+    if (size > Math.ceil(rec.size / COOKED) * COOKED) throw new Error(`${rec.name}: ${size} bytes is past its last sector.`);
+    const d = this.disc, raw = this.rawSector(rec.dirLba);
+    const at = d.dataOffset + rec.dirAt;
+    raw.writeUInt32LE(size, at + 10);
+    raw.writeUInt32BE(size, at + 14);
+    if (d.sectorSize === 2352) fixSector(raw);
+    this.sectors.set(rec.dirLba, raw);
+  }
+
   get count() { return this.sectors.size; }
 
   save(file) {

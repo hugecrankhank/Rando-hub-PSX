@@ -216,6 +216,34 @@ test('when KERNEL.BIN still doesn\'t fit, slots then gear are turned off and the
   } finally { kernel.build = real; }
 });
 
+test('KERNEL.BIN can grow into its last sector\'s spare room, and its size on the disc follows', async () => {
+  const tight = path.join(tmp, 'grow.bin');
+  fs.writeFileSync(tight, buildDisc({ layout: { noSlack: true } }));
+  const d0 = new Disc(tight); const rec0 = d0.findFile('INIT/KERNEL.BIN'); d0.close();
+  // Pretend the original file was 40 bytes shorter, so the seed's KERNEL.BIN has to grow past it.
+  const real = kernel.parse;
+  kernel.parse = (buf) => { const k = real(buf); if (buf.length === rec0.size) k.length = rec0.size - 40; return k; };
+  try {
+    const res = await ff7.generate({ discs: [tight], outDir: path.join(tmp, 'grow'), seed: 'GROW', options: { startMateria: 'random', slots: 'shuffle', drops: 'vanilla' } });
+    assert.ok(!res.notes.some((n) => /Turned off/.test(n)), res.notes.join(' | '));
+    const out = path.join(tmp, 'grow-out.bin');
+    await new PatchedImage(tight, res.discFiles[0]).exportTo(out);
+    const d = new Disc(out); const rec = d.findFile('INIT/KERNEL.BIN');
+    const k = real(d.readExtent(rec.lba, rec.size)); d.close();
+    assert.ok(k.sections.length >= 27, 'whole kernel readable at its new size');
+    assert.ok(rec.size <= Math.ceil(rec0.size / 2048) * 2048, 'stays inside its sectors');
+  } finally { kernel.parse = real; }
+});
+
+test('kernel build refuses to go past the last sector', () => {
+  const k = kernel.parse(require('./fake-ff7').kernelBinForTest({ noSlack: true }));
+  k.sections[kernel.SECTION.weapons].dirty = true;
+  k.length = 1; // (so the result is exactly as long as the packed sections)
+  const len = kernel.build(k, 1e6).length;
+  assert.throws(() => kernel.build(k, len - 1), (e) => e.kernelTooBig === 1);
+  assert.strictEqual(kernel.build(k, len).length, len);
+});
+
 test('text decoder', () => {
   assert.strictEqual(decode(Buffer.from([0x23, 0x4c, 0x4f, 0x55, 0x44, 0xff])), 'Cloud');
 });

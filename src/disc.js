@@ -77,6 +77,8 @@ class Disc {
         continue;
       }
       const rec = parseDirRecord(data, pos);
+      rec.dirLba = record.lba + Math.floor(pos / COOKED); // (where this record sits: sector, offset)
+      rec.dirAt = pos % COOKED;
       if (rec.name !== '\u0000' && rec.name !== '\u0001') entries.push(rec);
       pos += len;
     }
