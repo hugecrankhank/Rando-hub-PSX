@@ -73,7 +73,8 @@ test('generate patches all three discs and the result reads back', async () => {
     for (let c = 0; c < 9; c++) {
       const { buf, at } = kernel.charRecord(got.kernel, c);
       const wi = buf[at + kernel.CHAR.weapon];
-      const mask = w.readUInt16LE(wi * 44 + kernel.WEAPON.equip);
+      kernel.validate(got.kernel);
+      const mask = w.readUInt16LE(wi * 44 + got.kernel.layout.weapon.equip);
       assert.ok(mask & (1 << c), `char ${c} got a weapon they can't equip`);
       const slots = kernel.countSlots([...w.subarray(wi * 44 + 0x1c, wi * 44 + 0x24)]);
       for (let j = 0; j < 8; j++) {
@@ -139,6 +140,38 @@ test('patch refuses a different disc image', () => {
   const other = path.join(tmp, 'short.bin');
   fs.writeFileSync(other, fs.readFileSync(discs[0]).subarray(0, 2352 * 30));
   assert.throws(() => new PatchedImage(other, res), /different copy/);
+});
+
+test('finds weapon/armor fields that sit somewhere else on the disc', async () => {
+  const odd = path.join(tmp, 'odd.bin');
+  // Equip mask at 0x10, armor slots at 0x14, starting weapons stored as item numbers (128+).
+  fs.writeFileSync(odd, buildDisc({ layout: { equipAt: 0x10, armorSlotsAt: 0x14, weaponBase: 128 } }));
+  const info = ff7.inspect(odd);
+  assert.deepStrictEqual(info.kernel.problems, []);
+  assert.ok(Object.values(ff7.features(info.kernel, info.scene)).every(Boolean), 'every feature on');
+  const res = await ff7.generate({ discs: [odd], outDir: path.join(tmp, 'odd'), seed: 'ODD', options: { startGear: 'chaos', slots: 'shuffle', drops: 'vanilla' } });
+  assert.ok(!res.notes.some((n) => /Turned off/.test(n)), res.notes.join(' | '));
+  const exported = path.join(tmp, 'odd-out.bin');
+  await new PatchedImage(odd, res.discFiles[0]).exportTo(exported);
+  const k = filesOf(exported).kernel;
+  kernel.validate(k);
+  assert.strictEqual(k.layout.weapon.equip, 0x10);
+  assert.strictEqual(k.layout.armor.slots, 0x14);
+  const w = k.sections[kernel.SECTION.weapons].data;
+  for (let c = 0; c < 9; c++) {
+    const { buf, at } = kernel.charRecord(k, c);
+    assert.ok(buf[at + 0x1c] >= 128, 'starting weapon kept as an item number');
+    assert.ok(w.readUInt16LE((buf[at + 0x1c] - 128) * 44 + 0x10) & (1 << c), `char ${c} can equip their weapon`);
+  }
+});
+
+test('a disc whose slots fit nowhere turns the option off and says why', () => {
+  const k = kernel.parse(require('./fake-ff7').kernelBinForTest({}));
+  const w = k.sections[kernel.SECTION.weapons].data;
+  for (let i = 0; i < w.length; i++) w[i] = 9; // nothing in here looks like materia slots
+  const v = kernel.validate(k);
+  assert.ok(!v.ok.weapons);
+  assert.ok(v.problems.some((p) => /Weapon materia slots don't parse/.test(p)));
 });
 
 test('text decoder', () => {

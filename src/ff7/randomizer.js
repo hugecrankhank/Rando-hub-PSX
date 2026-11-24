@@ -90,32 +90,36 @@ function features(kv, sv) {
 
 // ------------------------------------------------------------------ planning
 
+// A character's starting weapon as a number in the weapon list (some data counts from 128, the item number).
+const startWeapon = (k, buf, at) => { const v = buf[at + kernel.CHAR.weapon]; return v === 0xff ? 0xff : v - (k.layout.weaponBase || 0); };
+
 function planSlots(k, names, rng, opts, log) {
   if (opts.slots !== 'shuffle') return null;
   const w = k.sections[kernel.SECTION.weapons].data;
   const a = k.sections[kernel.SECTION.armor].data;
   const plan = { weapons: new Map(), armor: new Map() };
-  const take = (d, i, size, so, go) => ({ slots: Buffer.from(d.subarray(i * size + so, i * size + so + 8)), growth: d[i * size + go] });
+  const L = k.layout;
+  const take = (d, i, size, so, go) => ({ slots: Buffer.from(d.subarray(i * size + so, i * size + so + 8)), growth: go == null ? null : d[i * size + go] });
 
   const byMask = new Map();
   for (let i = 0; i < 128; i++) {
     if (!names.weapons[i] || !names.weapons[i].trim()) continue;
-    if (!kernel.slotsOk(w.subarray(i * 44 + kernel.WEAPON.slots, i * 44 + kernel.WEAPON.slots + 8))) continue;
-    const mask = w.readUInt16LE(i * 44 + kernel.WEAPON.equip);
+    if (!kernel.slotsOk(w.subarray(i * 44 + L.weapon.slots, i * 44 + L.weapon.slots + 8))) continue;
+    const mask = w.readUInt16LE(i * 44 + L.weapon.equip);
     if (!byMask.has(mask)) byMask.set(mask, []);
     byMask.get(mask).push(i);
   }
   for (const list of byMask.values()) {
-    const vals = rng.shuffle(list.map((i) => take(w, i, 44, kernel.WEAPON.slots, kernel.WEAPON.growth)));
+    const vals = rng.shuffle(list.map((i) => take(w, i, 44, L.weapon.slots, L.weapon.growth)));
     list.forEach((i, n) => plan.weapons.set(i, vals[n]));
   }
   const armors = [];
   for (let i = 0; i < 32; i++) {
     if (!names.armor[i] || !names.armor[i].trim()) continue;
-    if (!kernel.slotsOk(a.subarray(i * 36 + kernel.ARMOR.slots, i * 36 + kernel.ARMOR.slots + 8))) continue;
+    if (!kernel.slotsOk(a.subarray(i * 36 + L.armor.slots, i * 36 + L.armor.slots + 8))) continue;
     armors.push(i);
   }
-  const avals = rng.shuffle(armors.map((i) => take(a, i, 36, kernel.ARMOR.slots, kernel.ARMOR.growth)));
+  const avals = rng.shuffle(armors.map((i) => take(a, i, 36, L.armor.slots, L.armor.growth)));
   armors.forEach((i, n) => plan.armor.set(i, avals[n]));
   log(`Shuffled materia slots on ${plan.weapons.size} weapons and ${plan.armor.size} armors.`);
   return plan;
@@ -125,7 +129,7 @@ function slotCountAfter(k, slotPlan, kind, idx) {
   if (slotPlan && slotPlan[kind].has(idx)) return kernel.countSlots([...slotPlan[kind].get(idx).slots]);
   const d = k.sections[kind === 'weapons' ? kernel.SECTION.weapons : kernel.SECTION.armor].data;
   const size = kind === 'weapons' ? 44 : 36;
-  const so = kind === 'weapons' ? kernel.WEAPON.slots : kernel.ARMOR.slots;
+  const so = kind === 'weapons' ? k.layout.weapon.slots : k.layout.armor.slots;
   return kernel.countSlots([...d.subarray(idx * size + so, idx * size + so + 8)]);
 }
 
@@ -139,12 +143,12 @@ function planGear(k, names, rng, opts) {
   armors.sort((x, y) => x.def - y.def);
   for (let c = 0; c < 9; c++) {
     const { buf, at } = kernel.charRecord(k, c);
-    const cur = buf[at + kernel.CHAR.weapon];
+    const cur = startWeapon(k, buf, at);
     if (cur >= 128) continue;
     const mine = [];
     for (let i = 0; i < 128; i++) {
       if (!names.weapons[i] || !names.weapons[i].trim()) continue;
-      const mask = w.readUInt16LE(i * 44 + kernel.WEAPON.equip);
+      const mask = w.readUInt16LE(i * 44 + k.layout.weapon.equip);
       if (mask & (1 << c)) mine.push({ i, atk: w[i * 44 + 4] });
     }
     if (!mine.length) continue;
@@ -175,7 +179,7 @@ function planMateria(k, names, rng, opts, gearPlan, slotPlan, log) {
   for (let c = 0; c < 9; c++) {
     const { buf, at } = kernel.charRecord(k, c);
     const g = gearPlan && gearPlan.get(c);
-    const weapon = g ? g.weapon : buf[at + kernel.CHAR.weapon];
+    const weapon = g ? g.weapon : startWeapon(k, buf, at);
     const armor = g ? g.armor : buf[at + kernel.CHAR.armor];
     const wSlots = weapon < 128 ? slotCountAfter(k, slotPlan, 'weapons', weapon) : 8;
     const aSlots = armor < 32 ? slotCountAfter(k, slotPlan, 'armor', armor) : 8;
@@ -272,8 +276,9 @@ function applyKernel(k, plans) {
   if (slotPlan) {
     const w = k.sections[kernel.SECTION.weapons];
     const a = k.sections[kernel.SECTION.armor];
-    for (const [i, v] of slotPlan.weapons) { v.slots.copy(w.data, i * 44 + kernel.WEAPON.slots); w.data[i * 44 + kernel.WEAPON.growth] = v.growth; }
-    for (const [i, v] of slotPlan.armor) { v.slots.copy(a.data, i * 36 + kernel.ARMOR.slots); a.data[i * 36 + kernel.ARMOR.growth] = v.growth; }
+    const L = k.layout;
+    for (const [i, v] of slotPlan.weapons) { v.slots.copy(w.data, i * 44 + L.weapon.slots); if (v.growth != null && L.weapon.growth != null) w.data[i * 44 + L.weapon.growth] = v.growth; }
+    for (const [i, v] of slotPlan.armor) { v.slots.copy(a.data, i * 36 + L.armor.slots); if (v.growth != null && L.armor.growth != null) a.data[i * 36 + L.armor.growth] = v.growth; }
     w.dirty = a.dirty = true;
   }
   if (gearPlan || materiaPlan) {
@@ -281,7 +286,7 @@ function applyKernel(k, plans) {
     for (let c = 0; c < 9; c++) {
       const { buf, at } = kernel.charRecord(k, c);
       const g = gearPlan && gearPlan.get(c);
-      if (g) { buf[at + kernel.CHAR.weapon] = g.weapon; buf[at + kernel.CHAR.armor] = g.armor; }
+      if (g) { buf[at + kernel.CHAR.weapon] = g.weapon + (k.layout.weaponBase || 0); buf[at + kernel.CHAR.armor] = g.armor; }
       const m = materiaPlan && materiaPlan.chars[c];
       if (m) {
         m.weaponMateria.forEach((v, j) => buf.writeUInt32LE(v >>> 0, at + kernel.CHAR.weaponMateria + j * 4));
@@ -339,7 +344,7 @@ function spoilerText({ seed, opts, names, k, plans, enemies, notes }) {
     for (let c = 0; c < 9; c++) {
       const { buf, at } = kernel.charRecord(k, c);
       const g = plans.gearPlan && plans.gearPlan.get(c);
-      const wi = g ? g.weapon : buf[at + kernel.CHAR.weapon];
+      const wi = g ? g.weapon : startWeapon(k, buf, at);
       const ai = g ? g.armor : buf[at + kernel.CHAR.armor];
       L.push(`${CHAR_NAMES[c]}: ${names.weapons[wi] || '-'} / ${names.armor[ai] || '-'}`);
       const m = plans.materiaPlan && plans.materiaPlan.chars[c];
@@ -358,7 +363,7 @@ function spoilerText({ seed, opts, names, k, plans, enemies, notes }) {
   }
   if (plans.slotPlan) {
     L.push('== Weapon materia slots ==');
-    const show = (v) => [...v.slots].map((b) => ({ 0: '', 1: 'o', 2: 'o=', 3: 'o', 5: 'x', 6: 'x=', 7: 'x' }[b] ?? '?')).join(' ').trim() + (v.growth === 0 ? ' (no growth)' : ` (growth x${v.growth})`);
+    const show = (v) => [...v.slots].map((b) => ({ 0: '', 1: 'o', 2: 'o=', 3: 'o', 5: 'x', 6: 'x=', 7: 'x' }[b] ?? '?')).join(' ').trim() + (v.growth == null ? '' : v.growth === 0 ? ' (no growth)' : ` (growth x${v.growth})`);
     for (const [i, v] of plans.slotPlan.weapons) L.push(`${names.weapons[i]}: ${show(v)}`);
     L.push('', '== Armor materia slots ==');
     for (const [i, v] of plans.slotPlan.armor) L.push(`${names.armor[i]}: ${show(v)}`);
@@ -454,6 +459,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     const f = i === 0 ? f1 : readGameFiles(p);
     const k = kernel.parse(f.kernelBuf);
     const s = scene.parse(f.sceneBuf);
+    if (i === 0) k.layout = k1.layout; else kernel.validate(k);
     applyKernel(k, plans);
     applyScene(s, plans, opts);
     const kOut = kernel.build(k);

@@ -92,37 +92,107 @@ function charRecord(k, i) {
   return { buf: d, at: INIT.chars + i * CHAR.size };
 }
 
+// A materia slot list: slots fill from the left, and a linked pair is a "left" value (2 or 6) at an even
+// position followed by a "right" value (3 or 7).
 function slotsOk(bytes) {
   let seenEmpty = false;
-  for (const b of bytes) {
+  for (let j = 0; j < bytes.length; j++) {
+    const b = bytes[j];
     if (!SLOT_VALUES.has(b)) return false;
-    if (b === 0) seenEmpty = true;
-    else if (seenEmpty) return false; // slots fill from the left
+    if (b === 0) { seenEmpty = true; continue; }
+    if (seenEmpty) return false;
+    if (b === 2 || b === 6) { if (j % 2 || (bytes[j + 1] !== 3 && bytes[j + 1] !== 7)) return false; }
+    if (b === 3 || b === 7) { if (!(j % 2) || (bytes[j - 1] !== 2 && bytes[j - 1] !== 6)) return false; }
   }
   return true;
 }
 
-// Returns { ok: {init, weapons, armor, names}, problems: [] }
+const named = (list, i) => !!(list[i] && list[i].trim());
+const bits = (v) => { let c = 0; for (; v; v &= v - 1) c++; return c; };
+
+// Where the materia slots sit in each record. The documented offset is tried first; if this disc's data doesn't
+// fit it, every other offset is tried and the one where the slot lists make sense for (nearly) every named record
+// wins. Returns { at, good, total } or null.
+function findSlots(data, size, count, names, preferred) {
+  const score = (off) => {
+    let good = 0, used = 0, total = 0;
+    for (let i = 0; i < count; i++) {
+      if (!named(names, i)) continue;
+      total++;
+      const b = data.subarray(i * size + off, i * size + off + 8);
+      if (slotsOk(b)) { good++; if (b[0]) used++; }
+    }
+    const ok = total > 0 && good >= total - Math.max(2, Math.floor(total * 0.05)) && used >= total * 0.6;
+    return { at: off, good, used, total, ok };
+  };
+  const first = score(preferred);
+  if (first.ok) return first;
+  let best = null;
+  for (let off = 0; off <= size - 8; off++) {
+    const r = score(off);
+    if (r.ok && (!best || r.good + r.used > best.good + best.used)) best = r;
+  }
+  return best ? best : { ...first, ok: false };
+}
+
+// A growth byte is 0-3 (none, normal, double, triple) on nearly every record.
+function growthOk(data, size, count, names, at) {
+  let n = 0, good = 0;
+  for (let i = 0; i < count; i++) { if (!named(names, i)) continue; n++; if (data[i * size + at] <= 3) good++; }
+  return n > 0 && good >= n * 0.9;
+}
+
+// Where the equip mask (u16, one bit per character) sits in a weapon record: each starting character's weapon
+// must allow that character, and few others.
+function findEquip(w, starts, preferred) {
+  const score = (off) => starts.filter(({ c, wi }) => {
+    const m = w.readUInt16LE(wi * SIZES.weapon + off);
+    return (m & (1 << c)) && bits(m & 0x1ff) <= 2;
+  }).length;
+  const need = Math.max(5, starts.length - 1);
+  if (score(preferred) >= need) return preferred;
+  let best = -1, bestScore = 0;
+  for (let off = 0; off <= SIZES.weapon - 2; off += 2) {
+    const sc = score(off);
+    if (sc >= need && sc > bestScore) { best = off; bestScore = sc; }
+  }
+  return best;
+}
+
+// Returns { ok: {init, weapons, armor, names, equipMask}, problems: [], layout }. The layout found is also kept
+// on the kernel (k.layout) for the seed generator.
 function validate(k) {
   const problems = [];
   const ok = { init: false, weapons: false, armor: false, names: false, equipMask: false };
+  const layout = {
+    weapon: { slots: WEAPON.slots, growth: WEAPON.growth, equip: WEAPON.equip },
+    armor: { slots: ARMOR.slots, growth: ARMOR.growth },
+    weaponBase: 0,
+  };
+  k.layout = layout;
   const n = allNames(k);
   const w = sec(k, SECTION.weapons), a = sec(k, SECTION.armor), m = sec(k, SECTION.materia), init = sec(k, SECTION.init);
 
   if (n.materia.length >= 90 && n.weapons.length >= 120 && n.armor.length >= 30 && n.items.length >= 120) ok.names = true;
-  else problems.push(`Name tables look wrong (materia ${n.materia.length}, weapons ${n.weapons.length}).`);
+  else problems.push(`Name tables look wrong (materia ${n.materia.length}, weapons ${n.weapons.length}, armor ${n.armor.length}, items ${n.items.length}).`);
 
   if (w && w.data.length === 128 * SIZES.weapon) {
-    let bad = 0;
-    for (let i = 0; i < 128; i++) if (!slotsOk(w.data.subarray(i * 44 + WEAPON.slots, i * 44 + WEAPON.slots + 8))) bad++;
-    if (bad <= 4) ok.weapons = true; else problems.push(`Weapon materia slots don't parse (${bad} odd).`);
-  } else problems.push('Weapon data section has an unexpected size.');
+    const r = findSlots(w.data, SIZES.weapon, 128, n.weapons, WEAPON.slots);
+    if (r.ok) {
+      ok.weapons = true;
+      layout.weapon.slots = r.at;
+      layout.weapon.growth = growthOk(w.data, SIZES.weapon, 128, n.weapons, WEAPON.growth) ? WEAPON.growth : null;
+    } else problems.push(`Weapon materia slots don't parse (${r.good}/${r.total} records fit at 0x${r.at.toString(16)}, and no other offset fits).`);
+  } else problems.push(`Weapon data section is ${w ? w.data.length : 0} bytes, expected ${128 * SIZES.weapon}.`);
 
   if (a && a.data.length === 32 * SIZES.armor) {
-    let bad = 0;
-    for (let i = 0; i < 32; i++) if (!slotsOk(a.data.subarray(i * 36 + ARMOR.slots, i * 36 + ARMOR.slots + 8))) bad++;
-    if (bad <= 2) ok.armor = true; else problems.push(`Armor materia slots don't parse (${bad} odd).`);
-  } else problems.push('Armor data section has an unexpected size.');
+    const r = findSlots(a.data, SIZES.armor, 32, n.armor, ARMOR.slots);
+    if (r.ok) {
+      ok.armor = true;
+      layout.armor.slots = r.at;
+      layout.armor.growth = growthOk(a.data, SIZES.armor, 32, n.armor, ARMOR.growth) ? ARMOR.growth : null;
+    } else problems.push(`Armor materia slots don't parse (${r.good}/${r.total} records fit at 0x${r.at.toString(16)}, and no other offset fits).`);
+  } else problems.push(`Armor data section is ${a ? a.data.length : 0} bytes, expected ${32 * SIZES.armor}.`);
 
   if (!m || m.data.length < 90 * SIZES.materia) problems.push('Materia data section has an unexpected size.');
 
@@ -138,15 +208,19 @@ function validate(k) {
     else problems.push(`Starting characters don't parse (${good}/9, first name "${first}").`);
   } else problems.push('Init data section has an unexpected size.');
 
-  // Equip masks: Cloud's starting weapon must be Cloud-only.
-  if (ok.weapons && ok.init) {
-    const { buf, at } = charRecord(k, 0);
-    const wi = buf[at + CHAR.weapon];
-    const mask = w.data.readUInt16LE(wi * 44 + WEAPON.equip);
-    if (wi < 128 && (mask & 1) && !(mask & ~0x201 & 0x7ff)) ok.equipMask = true;
-    else problems.push('Weapon equip masks don\'t check out.');
+  // Equip masks, checked against each character's starting weapon. The starting weapon byte is the weapon's
+  // number in the weapon list; some data counts weapons from 128 (their item number), so both are accepted.
+  if (w && w.data.length === 128 * SIZES.weapon && ok.init) {
+    const raw = [];
+    for (let c = 0; c < 9; c++) { const { buf, at } = charRecord(k, c); raw.push(buf[at + CHAR.weapon]); }
+    const real = raw.filter((v) => v !== 0xff);
+    layout.weaponBase = real.length && real.every((v) => v >= 128) ? 128 : 0;
+    const starts = raw.map((v, c) => ({ c, wi: v - layout.weaponBase })).filter((x) => x.wi >= 0 && x.wi < 128);
+    const at = findEquip(w.data, starts, WEAPON.equip);
+    if (at >= 0) { ok.equipMask = true; layout.weapon.equip = at; }
+    else problems.push(`Weapon equip masks don't check out (starting weapons ${raw.map((v) => '0x' + v.toString(16)).join(' ')}; at 0x${WEAPON.equip.toString(16)} the masks are ${starts.map(({ wi }) => '0x' + w.data.readUInt16LE(wi * SIZES.weapon + WEAPON.equip).toString(16)).join(' ')}).`);
   }
-  return { ok, problems };
+  return { ok, problems, layout };
 }
 
 const countSlots = (bytes) => bytes.filter((b) => b !== 0).length;
