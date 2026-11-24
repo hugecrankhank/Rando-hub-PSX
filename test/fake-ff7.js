@@ -90,6 +90,7 @@ function kernelBin(opts) {
     return Buffer.concat([h, g]);
   });
   const k = Buffer.concat(parts);
+  if (opts && opts.noSlack) return k; // (no room to spare at all)
   return Buffer.concat([k, Buffer.alloc(300)]); // slack, like a real file's tail
 }
 

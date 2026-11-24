@@ -34,15 +34,15 @@ function readMember(buf, pos = 0) {
 
 // Smallest deflate we can make; the game has fixed room for these files.
 function bestDeflate(data) {
-  const tries = [
-    { level: 9, memLevel: 9 },
-    { level: 9, memLevel: 9, strategy: zlib.constants.Z_FILTERED },
-    { level: 9, memLevel: 8 },
-  ];
   let best = null;
-  for (const o of tries) {
-    const d = zlib.deflateRawSync(data, o);
-    if (!best || d.length < best.length) best = d;
+  const S = zlib.constants;
+  for (const level of [9, 8, 7, 6]) {
+    for (const memLevel of [9, 8, 7]) {
+      for (const strategy of [S.Z_DEFAULT_STRATEGY, S.Z_FILTERED]) {
+        const d = zlib.deflateRawSync(data, { level, memLevel, strategy, windowBits: 15 });
+        if (!best || d.length < best.length) best = d;
+      }
+    }
   }
   return best;
 }
