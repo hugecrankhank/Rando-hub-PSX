@@ -33,11 +33,11 @@ The first time you start a game the app downloads the emulator core and caches i
 PSX Rando Hub is handed out through Rando Hub's license, the same way as Crowd Control+:
 
 1. Hank authorizes your license for PSX Rando Hub (Rando Hub's admin page, **Authorize** in the PSX Rando Hub row).
-2. On Rando Hub, signed in with your key, open **/download/** and download **PSX Rando Hub**. It's made for you: it carries a `license.json` with your license's token.
-3. Unzip it somewhere of your own (Documents or Desktop, not Program Files, so it can update itself) and open **PSX Rando Hub.exe**.
+2. On Rando Hub, signed in with your key, open **/download/** on your PC and download **PSX Rando Hub**. It's made for you: the zip has **PSX Rando Hub Setup.exe** and a `license.json` with your license's token.
+3. Extract the whole zip (right-click, **Extract All**), open the extracted folder and run **PSX Rando Hub Setup**. It installs the app for your Windows user, copies your license into the install folder, and adds Start menu and desktop shortcuts. (Run from inside the zip without extracting, it can't see the license and says so.)
 
 - **License checks.** The app checks your license with Rando Hub when it starts and every 30 minutes. If the license is turned off, the app locks and says why. Offline, it keeps working for 3 days from the last good check. Your name and build show in the top bar.
-- **Updates.** Every time it starts, the app installs a newer version by itself if there is one (it downloads, closes, swaps its files and reopens). Settings → **Check for updates** does the same on demand. Your settings, seeds and saves stay.
+- **Updates.** Every time it starts, the app installs a newer version by itself if there is one (it downloads the new Setup, closes, runs it silently and reopens). Settings → **Check for updates** does the same on demand. Your settings, seeds and saves stay.
 - **Publishing a new version.** Bump `version` in `package.json` and merge to `main`. The **Publish to Rando Hub** workflow builds the app and uploads the plain zip to Rando Hub's download bucket (`rando-hub-downloads/psx/PSX-Rando-Hub-v<version>.zip`). It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the same ones as Rando Hub's).
 - `npm start` (the developer copy) needs no license. Builds without a `license.json`, like the ones below, open to the lock page.
 

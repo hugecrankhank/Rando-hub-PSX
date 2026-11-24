@@ -48,6 +48,22 @@ jobs:
           ELECTRON_RUN_AS_NODE: '1'
         run: '"dist/win-unpacked/PSX Rando Hub.exe" scripts/smoke-packaged.js'
 
+      - name: Test the installer (silent install with a license file beside it)
+        shell: pwsh
+        run: |
+          $v = node -p "require('./package.json').version"
+          $t = Join-Path $env:RUNNER_TEMP 'setup-test'
+          New-Item -ItemType Directory -Force $t | Out-Null
+          Copy-Item "dist/PSX-Rando-Hub-Setup-$v.exe" "$t/PSX Rando Hub Setup.exe"
+          '{"name":"Test","build":"TEST01","token":"0000","server":"https://example.invalid"}' | Set-Content "$t/license.json"
+          $p = Start-Process "$t/PSX Rando Hub Setup.exe" -ArgumentList '/S' -Wait -PassThru
+          "installer exit code: $($p.ExitCode)"
+          $dir = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'PSX Rando Hub.exe') } | Select-Object -First 1
+          if (-not $dir) { throw 'PSX Rando Hub.exe was not installed' }
+          "installed to $($dir.FullName)"
+          if (-not (Test-Path (Join-Path $dir.FullName 'license.json'))) { throw 'license.json was not copied into the install folder' }
+          'license.json copied into the install folder'
+
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:

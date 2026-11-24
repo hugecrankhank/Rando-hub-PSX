@@ -58,9 +58,9 @@ jobs:
         if: steps.have.outputs.skip != '1'
         run: npm test
 
-      - name: Build the app folder
+      - name: Build the installer
         if: steps.have.outputs.skip != '1'
-        run: npx electron-builder --win dir --publish never
+        run: npx electron-builder --win nsis --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
@@ -70,6 +70,23 @@ jobs:
         env:
           ELECTRON_RUN_AS_NODE: '1'
         run: '"dist/win-unpacked/PSX Rando Hub.exe" scripts/smoke-packaged.js'
+
+      - name: Test the installer (silent install with a license file beside it)
+        if: steps.have.outputs.skip != '1'
+        shell: pwsh
+        run: |
+          $v = node -p "require('./package.json').version"
+          $t = Join-Path $env:RUNNER_TEMP 'setup-test'
+          New-Item -ItemType Directory -Force $t | Out-Null
+          Copy-Item "dist/PSX-Rando-Hub-Setup-$v.exe" "$t/PSX Rando Hub Setup.exe"
+          '{"name":"Test","build":"TEST01","token":"0000","server":"https://example.invalid"}' | Set-Content "$t/license.json"
+          $p = Start-Process "$t/PSX Rando Hub Setup.exe" -ArgumentList '/S' -Wait -PassThru
+          "installer exit code: $($p.ExitCode)"
+          $dir = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'PSX Rando Hub.exe') } | Select-Object -First 1
+          if (-not $dir) { throw 'PSX Rando Hub.exe was not installed' }
+          "installed to $($dir.FullName)"
+          if (-not (Test-Path (Join-Path $dir.FullName 'license.json'))) { throw 'license.json was not copied into the install folder' }
+          'license.json copied into the install folder'
 
       - name: Zip and upload
         if: steps.have.outputs.skip != '1'
@@ -81,8 +98,16 @@ jobs:
           export CLOUDFLARE_API_TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
           export CLOUDFLARE_ACCOUNT_ID="$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
           ZIP="PSX-Rando-Hub-v${{ steps.v.outputs.version }}.zip"
-          mv "dist/win-unpacked" "dist/PSX Rando Hub"
-          (cd dist && 7z a -tzip -mx=7 "$ZIP" "PSX Rando Hub" >/dev/null)
+          # The zip: a "PSX Rando Hub" folder with the installer (Rando Hub adds license.json beside it per player).
+          mkdir -p "dist/zip/PSX Rando Hub"
+          cp "dist/PSX-Rando-Hub-Setup-${{ steps.v.outputs.version }}.exe" "dist/zip/PSX Rando Hub/PSX Rando Hub Setup.exe"
+          printf '%s\r\n' "PSX RANDO HUB v${{ steps.v.outputs.version }}" "" \
+            "1. Extract this whole zip (right-click it, Extract All). Don't run Setup from inside the zip." \
+            "2. Open the extracted PSX Rando Hub folder and run PSX Rando Hub Setup." \
+            "   It installs PSX Rando Hub with your license, and adds Start menu and desktop shortcuts." \
+            "" "After that it checks your license when it starts and every 30 minutes, and updates itself when it starts." \
+            > "dist/zip/PSX Rando Hub/READ ME FIRST.txt"
+          (cd dist/zip && 7z a -tzip -mx=1 "../$ZIP" "PSX Rando Hub" >/dev/null)
           ls -l "dist/$ZIP"
           npx --yes wrangler@4 r2 object put "rando-hub-downloads/psx/$ZIP" --file "dist/$ZIP" --content-type application/zip --remote
           echo "Published v${{ steps.v.outputs.version }}: authorized licenses download it from /download/, and every copy updates itself when it starts."
