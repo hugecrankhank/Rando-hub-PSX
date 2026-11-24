@@ -29,7 +29,10 @@ const MATERIA = Array.from({ length: 96 }, (_, i) => `Materia ${i}`);
 Object.assign(MATERIA, { 49: 'Fire', 50: 'Ice', 52: 'Lightning', 53: 'Restore', 73: 'Master Magic', 89: 'Knights of Round', 37: 'Steal', 45: 'Enemy Skill', 74: 'Choco/Mog' });
 MATERIA[16] = ''; MATERIA[23] = '';
 
-function kernelSections() {
+// opts (to test the layout search): equipAt (weapon equip mask offset), armorSlotsAt, weaponBase (128: starting
+// weapons stored as item numbers)
+function kernelSections(opts = {}) {
+  const equipAt = opts.equipAt ?? 0x0e, armorSlotsAt = opts.armorSlotsAt ?? 8, weaponBase = opts.weaponBase ?? 0;
   const s = [];
   s[0] = Buffer.alloc(1000, 1); s[1] = Buffer.alloc(3000, 2); s[2] = Buffer.alloc(2000, 3);
   const init = Buffer.alloc(0xb80, 0);
@@ -38,7 +41,7 @@ function kernelSections() {
     const at = c * 0x84;
     init[at] = c; init[at + 1] = c === 0 ? 6 : 1;
     const n = enc(names[c]); init.fill(0xff, at + 0x10, at + 0x1c); n.copy(init, at + 0x10, 0, Math.min(12, n.length));
-    init[at + 0x1c] = c * 14; init[at + 0x1d] = 0; init[at + 0x1e] = 0xff;
+    init[at + 0x1c] = c * 14 + weaponBase; init[at + 0x1d] = 0; init[at + 0x1e] = 0xff;
     init.fill(0xff, at + 0x40, at + 0x80);
   }
   init.writeUInt32LE(50, 0x40); init.writeUInt32LE(52, 0x44); // Cloud: Ice, Lightning
@@ -54,12 +57,12 @@ function kernelSections() {
     w[at + 4] = 10 + i;
     w[at + 6] = 1;
     const owner = Math.min(8, Math.floor(i / 14));
-    w.writeUInt16LE(1 << owner, at + 0x0e);
+    w.writeUInt16LE(1 << owner, at + equipAt);
     Buffer.from(i % 3 === 0 ? [2, 3, 1, 0, 0, 0, 0, 0] : i % 3 === 1 ? [1, 0, 0, 0, 0, 0, 0, 0] : [2, 3, 2, 3, 0, 0, 0, 0]).copy(w, at + 0x1c);
   }
   s[5] = w;
   const a = Buffer.alloc(32 * 36, 0);
-  for (let i = 0; i < 32; i++) { a[i * 36 + 2] = i * 3; Buffer.from(i % 2 ? [1, 1, 0, 0, 0, 0, 0, 0] : [2, 3, 0, 0, 0, 0, 0, 0]).copy(a, i * 36 + 8); a[i * 36 + 0x10] = 1; }
+  for (let i = 0; i < 32; i++) { a[i * 36 + 2] = i * 3; Buffer.from(i % 2 ? [1, 1, 0, 0, 0, 0, 0, 0] : [2, 3, 0, 0, 0, 0, 0, 0]).copy(a, i * 36 + armorSlotsAt); a[i * 36 + 0x10] = 1; }
   s[6] = a;
   s[7] = Buffer.alloc(32 * 16, 7);
   s[8] = Buffer.alloc(96 * 20, 8);
@@ -74,8 +77,8 @@ function kernelSections() {
   return s;
 }
 
-function kernelBin() {
-  const parts = kernelSections().map((d, i) => {
+function kernelBin(opts) {
+  const parts = kernelSections(opts).map((d, i) => {
     const g = gz(d, i === 3 ? 'init.bin' : null);
     const h = Buffer.alloc(6);
     h.writeUInt16LE(g.length, 0); h.writeUInt16LE(d.length, 2); h.writeUInt16LE(i, 4);
@@ -136,14 +139,14 @@ function dirRecord(name, lba, size, isDir) {
   return r;
 }
 
-function buildDisc({ serial = 'SCUS_941.63' } = {}) {
+function buildDisc({ serial = 'SCUS_941.63', layout = {} } = {}) {
   const files = {};
   const exe = Buffer.alloc(0x800 + 0x8000);
   exe.write('PS-X EXE', 0, 'ascii');
   exe.writeUInt32LE(0x80010000, 0x18); exe.writeUInt32LE(0x8000, 0x1c);
   for (let i = 0x800; i < exe.length; i++) exe[i] = (i * 2654435761) >>> 24;
   const cnf = Buffer.from(`BOOT = cdrom:\\${serial};1\r\nTCB = 4\r\n`);
-  const kernel = kernelBin(), scene = sceneBin();
+  const kernel = kernelBin(layout), scene = sceneBin();
   // Layout: 16 empty, 17 PVD... (16 = PVD, 17 = terminator), 18 root, 19 INIT, 20 BATTLE, then files.
   let lba = 22;
   const place = (buf) => { const at = lba; lba += Math.ceil(buf.length / 2048) + 1; return at; };
@@ -193,4 +196,4 @@ function buildDisc({ serial = 'SCUS_941.63' } = {}) {
   return img;
 }
 
-module.exports = { buildDisc, kernelSections, MATERIA };
+module.exports = { buildDisc, kernelSections, kernelBinForTest: kernelBin, MATERIA };

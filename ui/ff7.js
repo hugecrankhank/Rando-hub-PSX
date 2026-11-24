@@ -496,7 +496,11 @@ async function renderSettings() {
   const note = $('featureNote');
   if (d1 && d1.ok && d1.features) {
     const off = Object.entries(d1.features).filter(([, v]) => !v).map(([k]) => k);
-    note.textContent = off.length ? `Your Disc 1 didn't pass the checks for: ${off.join(', ')}. Those options will be skipped.` : '';
+    const label = { startMateria: 'starting materia', startGear: 'starting weapons & armor', slots: 'materia slots', drops: 'drops & steals', mults: 'EXP/AP/gil' };
+    note.textContent = off.length
+      ? `Your Disc 1 didn't pass the checks for: ${off.map((k) => label[k] || k).join(', ')}. Those options will be skipped. Details (send these to Hank): ${(d1.problems || []).join(' ')}`
+      : '';
+    note.style.userSelect = 'text';
   } else note.textContent = '';
   renderChecklist();
 }
