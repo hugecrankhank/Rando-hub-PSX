@@ -75,7 +75,7 @@ test('generate patches all three discs and the result reads back', async () => {
       const wi = buf[at + kernel.CHAR.weapon];
       kernel.validate(got.kernel);
       const mask = w.readUInt16LE(wi * 44 + got.kernel.layout.weapon.equip);
-      assert.ok(mask & (1 << c), `char ${c} got a weapon they can't equip`);
+      assert.ok(mask & (1 << buf[at]), `char ${c} got a weapon they can't equip`);
       const slots = kernel.countSlots([...w.subarray(wi * 44 + 0x1c, wi * 44 + 0x24)]);
       for (let j = 0; j < 8; j++) {
         const v = buf.readUInt32LE(at + 0x40 + j * 4);
@@ -161,7 +161,7 @@ test('finds weapon/armor fields that sit somewhere else on the disc', async () =
   for (let c = 0; c < 9; c++) {
     const { buf, at } = kernel.charRecord(k, c);
     assert.ok(buf[at + 0x1c] >= 128, 'starting weapon kept as an item number');
-    assert.ok(w.readUInt16LE((buf[at + 0x1c] - 128) * 44 + 0x10) & (1 << c), `char ${c} can equip their weapon`);
+    assert.ok(w.readUInt16LE((buf[at + 0x1c] - 128) * 44 + 0x10) & (1 << buf[at]), `char ${c} can equip their weapon`);
   }
 });
 
@@ -172,6 +172,17 @@ test('a disc whose slots fit nowhere turns the option off and says why', () => {
   const v = kernel.validate(k);
   assert.ok(!v.ok.weapons);
   assert.ok(v.problems.some((p) => /Weapon materia slots don't parse/.test(p)));
+});
+
+test('flashback characters (Young Cloud, Sephiroth) keep their gear and materia', async () => {
+  const res = await ff7.generate({ discs: [discs[0]], outDir: path.join(tmp, 'fb'), seed: 'FB', options: { startMateria: 'chaos', startGear: 'chaos', slots: 'shuffle', drops: 'vanilla' } });
+  assert.ok(!res.notes.some((n) => /Turned off/.test(n)), res.notes.join(' | '));
+  const out = path.join(tmp, 'fb.bin');
+  await new PatchedImage(discs[0], res.discFiles[0]).exportTo(out);
+  const init = filesOf(out).kernel.sections[kernel.SECTION.init].data;
+  assert.strictEqual(init[7 * 0x84 + 0x1c], 127, 'Sephiroth keeps his weapon');
+  assert.strictEqual(init.readUInt32LE(7 * 0x84 + 0x40), 49, 'Sephiroth keeps his materia');
+  assert.strictEqual(init[6 * 0x84 + 0x1c], 0, 'Young Cloud keeps his weapon');
 });
 
 test('text decoder', () => {

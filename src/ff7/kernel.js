@@ -147,7 +147,7 @@ function growthOk(data, size, count, names, at) {
 function findEquip(w, starts, preferred) {
   const score = (off) => starts.filter(({ c, wi }) => {
     const m = w.readUInt16LE(wi * SIZES.weapon + off);
-    return (m & (1 << c)) && bits(m & 0x1ff) <= 2;
+    return (m & (1 << c)) && bits(m & 0x7ff) <= 2;
   }).length;
   const need = Math.max(5, starts.length - 1);
   if (score(preferred) >= need) return preferred;
@@ -215,7 +215,10 @@ function validate(k) {
     for (let c = 0; c < 9; c++) { const { buf, at } = charRecord(k, c); raw.push(buf[at + CHAR.weapon]); }
     const real = raw.filter((v) => v !== 0xff);
     layout.weaponBase = real.length && real.every((v) => v >= 128) ? 128 : 0;
-    const starts = raw.map((v, c) => ({ c, wi: v - layout.weaponBase })).filter((x) => x.wi >= 0 && x.wi < 128);
+    // The equip bit is the character's own id, which isn't always the slot: at the start, slots 6 and 7 hold
+    // Young Cloud (id 9) and Sephiroth (id 10) for the flashback.
+    const starts = raw.map((v, slot) => { const { buf, at } = charRecord(k, slot); return { c: buf[at + CHAR.id], wi: v - layout.weaponBase }; })
+      .filter((x) => x.wi >= 0 && x.wi < 128 && x.c <= 10);
     const at = findEquip(w.data, starts, WEAPON.equip);
     if (at >= 0) { ok.equipMask = true; layout.weapon.equip = at; }
     else problems.push(`Weapon equip masks don't check out (starting weapons ${raw.map((v) => '0x' + v.toString(16)).join(' ')}; at 0x${WEAPON.equip.toString(16)} the masks are ${starts.map(({ wi }) => '0x' + w.data.readUInt16LE(wi * SIZES.weapon + WEAPON.equip).toString(16)).join(' ')}).`);

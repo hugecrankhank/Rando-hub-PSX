@@ -145,6 +145,8 @@ function planGear(k, names, rng, opts) {
     const { buf, at } = kernel.charRecord(k, c);
     const cur = startWeapon(k, buf, at);
     if (cur >= 128) continue;
+    // Young Cloud and Sephiroth (the flashback, in slots 6 and 7 at the start) keep their gear.
+    if (buf[at + kernel.CHAR.id] !== c) continue;
     const mine = [];
     for (let i = 0; i < 128; i++) {
       if (!names.weapons[i] || !names.weapons[i].trim()) continue;
@@ -186,7 +188,8 @@ function planMateria(k, names, rng, opts, gearPlan, slotPlan, log) {
     const read = (base) => Array.from({ length: 8 }, (_, j) => buf.readUInt32LE(at + base + j * 4));
     const fix = (list, room) => list.map((v, j) => {
       if (v === 0xffffffff) return v;
-      const nv = opts.startMateria === 'vanilla' ? v : draw();
+      // (Young Cloud's and Sephiroth's flashback materia stays as it is.)
+      const nv = opts.startMateria === 'vanilla' || buf[at + kernel.CHAR.id] !== c ? v : draw();
       if (j >= room) { spill.push(nv); return 0xffffffff; }
       return nv;
     });
@@ -465,7 +468,13 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     const kOut = kernel.build(k);
     const sOut = scene.build(s);
     if (sOut.reverted.length) {
-      const msg = `Disc ${i + 1}: ${sOut.reverted.length} battle(s) kept vanilla data because the changes didn't fit.`;
+      const set = new Set(sOut.reverted), who = new Set();
+      for (const { index, scene: sc } of scene.scenes(s)) {
+        if (!set.has(index)) continue;
+        for (const e of scene.enemies(sc)) { const n = scene.readEnemy(sc.data, e.at).name.trim(); if (n) who.add(n); }
+      }
+      const msg = `Disc ${i + 1}: ${sOut.reverted.length} battle(s) kept vanilla drops and EXP because the changes didn't fit` +
+        (who.size ? ` (in those battles: ${[...who].join(', ')})` : '') + '.';
       log(msg); notes.push(msg);
     }
     // Self-check: what we're about to write must read back the same.
