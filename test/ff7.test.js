@@ -185,6 +185,37 @@ test('flashback characters (Young Cloud, Sephiroth) keep their gear and materia'
   assert.strictEqual(init[6 * 0x84 + 0x1c], 0, 'Young Cloud keeps his weapon');
 });
 
+test('a kernel that would grow too big drops options one at a time instead of failing', async () => {
+  // A disc whose KERNEL.BIN has no room to spare at all, with data that compresses well when vanilla.
+  const tight = path.join(tmp, 'tight.bin');
+  fs.writeFileSync(tight, buildDisc({ layout: { noSlack: true } }));
+  const res = await ff7.generate({ discs: [tight], outDir: path.join(tmp, 'tight'), seed: 'TIGHT', options: { startMateria: 'chaos', startGear: 'chaos', slots: 'shuffle', drops: 'shuffle' } });
+  assert.ok(res.discFiles[0], 'a seed was made');
+  const out = path.join(tmp, 'tight-out.bin');
+  await new PatchedImage(tight, res.discFiles[0]).exportTo(out);
+  filesOf(out); // reads back
+  const off = res.notes.filter((n) => /Turned off .*too big/.test(n));
+  console.log('   (tight disc notes:', off.join(' | ') || 'none needed', ')');
+});
+
+test('when KERNEL.BIN still doesn\'t fit, slots then gear are turned off and the seed is still made', async () => {
+  const real = kernel.build;
+  let calls = 0;
+  // Pretend the first two plans (with slots, then with gear) are 50 bytes too big.
+  kernel.build = (k) => {
+    const shuffled = k.sections[kernel.SECTION.weapons].dirty, gear = k.sections[kernel.SECTION.init].dirty;
+    calls++;
+    if (shuffled || (gear && calls < 3)) { const e = new Error('too big'); e.kernelTooBig = 50; throw e; }
+    return real(k);
+  };
+  try {
+    const res = await ff7.generate({ discs: [discs[0]], outDir: path.join(tmp, 'fall'), seed: 'FALL', options: { startMateria: 'random', startGear: 'chaos', slots: 'shuffle', drops: 'vanilla' } });
+    assert.ok(res.discFiles[0]);
+    assert.strictEqual(res.options.slots, 'vanilla');
+    assert.ok(res.notes.some((n) => /Turned off materia slot shuffle/.test(n)), res.notes.join(' | '));
+  } finally { kernel.build = real; }
+});
+
 test('text decoder', () => {
   assert.strictEqual(decode(Buffer.from([0x23, 0x4c, 0x4f, 0x55, 0x44, 0xff])), 'Cloud');
 });

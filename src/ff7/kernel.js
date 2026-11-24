@@ -45,19 +45,30 @@ function parse(buf) {
 }
 
 function build(k) {
-  const parts = [];
-  for (const s of k.sections) {
-    const body = s.dirty ? writeMember(s.header, s.data) : s.original;
-    if (body.length > 0xffff) throw new Error('KERNEL.BIN section too large');
-    const h = Buffer.alloc(6);
-    h.writeUInt16LE(body.length, 0);
-    h.writeUInt16LE(s.data.length, 2);
-    h.writeUInt16LE(s.type, 4);
-    parts.push(h, body);
-  }
-  const out = Buffer.concat(parts);
+  const pack = (squeeze) => {
+    const parts = [];
+    for (const s of k.sections) {
+      let body = s.dirty ? writeMember(s.header, s.data) : s.original;
+      // Short of room: untouched sections are recompressed too, kept only where that comes out smaller.
+      if (squeeze && !s.dirty) {
+        const re = writeMember(s.header, s.data);
+        if (re.length < body.length) body = re;
+      }
+      if (body.length > 0xffff) throw new Error('KERNEL.BIN section too large');
+      const h = Buffer.alloc(6);
+      h.writeUInt16LE(body.length, 0);
+      h.writeUInt16LE(s.data.length, 2);
+      h.writeUInt16LE(s.type, 4);
+      parts.push(h, body);
+    }
+    return Buffer.concat(parts);
+  };
+  let out = pack(false);
+  if (out.length > k.length) out = pack(true);
   if (out.length > k.length) {
-    throw new Error(`KERNEL.BIN grew by ${out.length - k.length} bytes and won't fit on the disc.`);
+    const e = new Error(`KERNEL.BIN grew by ${out.length - k.length} bytes and won't fit on the disc.`);
+    e.kernelTooBig = out.length - k.length;
+    throw e;
   }
   // Same size as the original so the game's file table stays right; zero fill.
   return Buffer.concat([out, Buffer.alloc(k.length - out.length)]);

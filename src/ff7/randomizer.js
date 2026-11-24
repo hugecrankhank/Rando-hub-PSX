@@ -445,12 +445,41 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
   }
 
   const names = kernel.allNames(k1);
-  const rng = makeRng(`ff7|v${VERSION}|${seed}|${JSON.stringify(opts)}`);
-  const plans = {};
-  plans.slotPlan = planSlots(k1, names, rng, opts, log);
-  plans.gearPlan = planGear(k1, names, rng, opts);
-  plans.materiaPlan = planMateria(k1, names, rng, opts, plans.gearPlan, plans.slotPlan, log);
-  plans.dropPlan = planDrops(s1, rng, opts, log);
+  const files = discs.map((p, i) => (!p ? null : i === 0 ? f1 : readGameFiles(p)));
+  const kernelFor = (i) => {
+    const k = kernel.parse(files[i].kernelBuf);
+    if (i === 0) k.layout = k1.layout; else kernel.validate(k);
+    return k;
+  };
+  // KERNEL.BIN has a fixed amount of room on the disc, and shuffled data compresses a little worse than the
+  // original. If a plan doesn't fit, it's made again without the option that grows the file most (slots, then
+  // starting gear, then starting materia), as if that option had been picked, and the log says so.
+  const FALLBACKS = [['slots', 'materia slot shuffle'], ['startGear', 'random starting weapons & armor'], ['startMateria', 'random starting materia']];
+  let plans, planLog;
+  for (;;) {
+    const rng = makeRng(`ff7|v${VERSION}|${seed}|${JSON.stringify(opts)}`);
+    plans = {};
+    planLog = [];
+    const keep = (m) => planLog.push(m);
+    plans.slotPlan = planSlots(k1, names, rng, opts, keep);
+    plans.gearPlan = planGear(k1, names, rng, opts);
+    plans.materiaPlan = planMateria(k1, names, rng, opts, plans.gearPlan, plans.slotPlan, keep);
+    plans.dropPlan = planDrops(s1, rng, opts, keep);
+    let tooBig = 0;
+    for (let i = 0; i < 3 && !tooBig; i++) {
+      if (!files[i]) continue;
+      const k = kernelFor(i);
+      applyKernel(k, plans);
+      try { kernel.build(k); } catch (e) { if (!e.kernelTooBig) throw e; tooBig = e.kernelTooBig; }
+    }
+    if (!tooBig) break;
+    const fb = FALLBACKS.find(([key]) => opts[key] !== 'vanilla');
+    if (!fb) throw new Error(`KERNEL.BIN grew by ${tooBig} bytes and won't fit on the disc.`);
+    const msg = `Turned off ${fb[1]}: the game's main data file came out ${tooBig} bytes too big for its space on the disc with it.`;
+    log(msg); notes.push(msg);
+    opts[fb[0]] = 'vanilla';
+  }
+  planLog.forEach((m) => log(m)); // (the plan that's used)
   const enemies = enemyTable(s1);
 
   fs.mkdirSync(outDir, { recursive: true });
@@ -459,10 +488,9 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     const p = discs[i];
     if (!p) { discFiles.push(null); continue; }
     log(`Patching Disc ${i + 1}…`);
-    const f = i === 0 ? f1 : readGameFiles(p);
-    const k = kernel.parse(f.kernelBuf);
+    const f = files[i];
+    const k = kernelFor(i);
     const s = scene.parse(f.sceneBuf);
-    if (i === 0) k.layout = k1.layout; else kernel.validate(k);
     applyKernel(k, plans);
     applyScene(s, plans, opts);
     const kOut = kernel.build(k);
