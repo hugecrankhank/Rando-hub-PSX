@@ -111,18 +111,21 @@ function itemNames(kern) {
         const offs = Array.from({ length: count }, (_, i) => ds.readUInt16LE(st * i));
         for (let t = 31; t < kern.count; t++) {
           const ts = kern.sec(t);
-          if (!offs.every((o) => o < ts.length)) continue;
-          const names = offs.map((o) => decode(ts, o, o + 32));
+          if (!offs.every((o) => o === 0xffff || o < ts.length)) continue;
+          const names = offs.map((o) => (o === 0xffff ? '' : decode(ts, o, o + 32)));
           if (ok(names)) return { names, d, st, t };
         }
       }
     }
     return null;
   };
-  const battle = tryTable((n) => n[0] === 'Potion' && n[1] === 'Potion+');
+  const battle = tryTable((n) => { const k = n.indexOf('Potion'); return k >= 0 && k <= 1 && n[k + 1] === 'Potion+'; });
   const other = tryTable((n) => n.includes('Tent') && n.includes('Cottage') && n.length >= 100);
+  itemNames.found = { battle: battle && { d: battle.d, st: battle.st, t: battle.t, n: battle.names.length }, other: other && { d: other.d, st: other.st, t: other.t, n: other.names.length } };
   if (!battle || !other) return null;
-  return ['', ...battle.names, ...other.names];
+  // Item 1 is Potion; the battle items run on from there, then the others.
+  const b = battle.names.slice(battle.names.indexOf('Potion'));
+  return ['', ...b, ...other.names];
 }
 
 function readEnemy(disc, e) {
