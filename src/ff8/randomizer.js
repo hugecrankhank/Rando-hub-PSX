@@ -21,24 +21,51 @@ const DEFAULT_OPTIONS = {
   draws: 'balanced',   // vanilla | balanced | shuffle | random   (magic you can draw from enemies)
   items: 'balanced',   // vanilla | balanced | shuffle | random   (mugs and drops)
   cards: 'shuffle',    // vanilla | shuffle                       (the card an enemy gives, via Card or a win)
+  gfAbilities: 'vanilla', // vanilla | balanced | chaos           (which abilities each Guardian Force can learn)
   expMult: 1,
   apMult: 1,
 };
 const PRESETS = {
-  casual: { label: 'Casual', options: { draws: 'balanced', items: 'balanced', cards: 'shuffle', expMult: 1.5, apMult: 2 } },
-  standard: { label: 'Standard', options: { draws: 'balanced', items: 'balanced', cards: 'shuffle', expMult: 1, apMult: 1 } },
-  wild: { label: 'Wild', options: { draws: 'shuffle', items: 'shuffle', cards: 'shuffle', expMult: 1, apMult: 1 } },
-  chaos: { label: 'Chaos', options: { draws: 'random', items: 'random', cards: 'shuffle', expMult: 1, apMult: 1 } },
-  draws: { label: 'Draws only', options: { draws: 'balanced', items: 'vanilla', cards: 'vanilla', expMult: 1, apMult: 1 } },
+  casual: { label: 'Casual', options: { draws: 'balanced', items: 'balanced', cards: 'shuffle', gfAbilities: 'vanilla', expMult: 1.5, apMult: 2 } },
+  standard: { label: 'Standard', options: { draws: 'balanced', items: 'balanced', cards: 'shuffle', gfAbilities: 'balanced', expMult: 1, apMult: 1 } },
+  wild: { label: 'Wild', options: { draws: 'shuffle', items: 'shuffle', cards: 'shuffle', gfAbilities: 'balanced', expMult: 1, apMult: 1 } },
+  chaos: { label: 'Chaos', options: { draws: 'random', items: 'random', cards: 'shuffle', gfAbilities: 'chaos', expMult: 1, apMult: 1 } },
+  draws: { label: 'Draws only', options: { draws: 'balanced', items: 'vanilla', cards: 'vanilla', gfAbilities: 'vanilla', expMult: 1, apMult: 1 } },
 };
 
 const inspect = (discPath) => {
   const info = inspectDisc(discPath);
   const d = dd.load(discPath);
   const v = dd.validate(d);
-  return { exeName: info.exeName, enemies: d.enemies.length, ok: v.ok, problems: v.problems, magicNames: d.magicNames };
+  const problems = [...v.problems];
+  if (!d.gfs) problems.push('Couldn’t confirm the Guardian Forces’ ability lists, so GF ability shuffle is off.');
+  return { exeName: info.exeName, enemies: d.enemies.length, ok: v.ok, gfOk: !!d.gfs, problems, magicNames: d.magicNames };
 };
-const features = (r) => ({ draws: r.ok, items: r.ok, cards: r.ok, mults: r.ok });
+const features = (r) => ({ draws: r.ok, items: r.ok, cards: r.ok, mults: r.ok, gfAbilities: !!r.gfOk });
+
+// ------------------------------------------------------------------ GF abilities
+// Moves only ability ids between GFs' learn-list slots (each slot keeps its own unlock settings), never puts the
+// same ability twice on one GF, and keeps a GF's empty slots empty. "balanced" leaves Magic, GF, Draw and Item
+// (ids 20-23) where they are, so the first GFs still bring the basic commands; "chaos" moves everything.
+const BASIC = new Set([20, 21, 22, 23]);
+function planGfs(gfs, mode, rng) {
+  const keep = (a) => a === 0 || (mode === 'balanced' && BASIC.has(a));
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const pool = rng.shuffle(gfs.flatMap((l) => l.filter((a) => !keep(a))));
+    const out = gfs.map((l) => l.map((a) => (keep(a) ? a : null)));
+    let ok = true;
+    for (let g = 0; g < out.length && ok; g++) {
+      for (let j = 0; j < out[g].length && ok; j++) {
+        if (out[g][j] !== null) continue;
+        const k = pool.findIndex((a) => !out[g].includes(a));
+        if (k < 0) { ok = false; break; }
+        out[g][j] = pool.splice(k, 1)[0];
+      }
+    }
+    if (ok) return out;
+  }
+  return null;
+}
 
 // ------------------------------------------------------------------ planning
 // A "slot" is one (enemy, band, position) entry. Plans are keyed by enemy index, so they apply to every disc.
@@ -109,7 +136,7 @@ function matchEnemies(base, other) {
 
 // ------------------------------------------------------------------ spoiler
 
-function spoilerText({ seed, opts, enemies, plans, magicNames, itemNames, notes }) {
+function spoilerText({ seed, opts, enemies, plans, magicNames, itemNames, notes, gfPlan, abilityNames }) {
   const L = [];
   const mag = (id) => (id >= 1 && id <= dd.MAGIC_MAX ? (magicNames && magicNames[id]) || `Magic #${id}` : id > dd.MAGIC_MAX ? `Guardian Force #${id}` : '');
   const item = ([id, q]) => (id ? `${(itemNames && itemNames[id]) || `Item #${id}`}${q > 1 ? ` x${q}` : ''}` : '');
@@ -119,6 +146,12 @@ function spoilerText({ seed, opts, enemies, plans, magicNames, itemNames, notes 
   L.push('');
   if (notes.length) { L.push('Notes:'); notes.forEach((n) => L.push('  ' + n)); L.push(''); }
   L.push('Draws, mugs and drops are listed by enemy level band: low / mid / high.' + (itemNames ? '' : ' Item numbers follow the game\'s item list (1 = Potion).'), '');
+  if (gfPlan) {
+    const GF_NAMES = ['Quezacotl', 'Shiva', 'Ifrit', 'Siren', 'Brothers', 'Diablos', 'Carbuncle', 'Leviathan', 'Pandemona', 'Cerberus', 'Alexander', 'Doomtrain', 'Bahamut', 'Cactuar', 'Tonberry', 'Eden'];
+    L.push('== Guardian Force abilities ==');
+    gfPlan.forEach((l, g) => L.push(`${GF_NAMES[g] || `GF ${g + 1}`}: ${l.filter(Boolean).map((a) => (abilityNames && abilityNames[a]) || `#${a}`).join(', ')}`));
+    L.push('');
+  }
   L.push('== Enemies ==');
   const seen = new Set();
   enemies.forEach((e, i) => {
@@ -181,8 +214,18 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
   }
   log(`Found ${d1.enemies.length} enemies.`);
 
+  if (opts.gfAbilities !== 'vanilla' && !d1.gfs) {
+    const msg = 'Turned off GF ability shuffle: couldn’t confirm the GF ability lists on this disc.';
+    log(msg); notes.push(msg); opts.gfAbilities = 'vanilla';
+  }
   const rng = makeRng(`ff8|v${VERSION}|${seed}|${JSON.stringify(opts)}`);
   const plans = plan(d1.enemies, opts, rng, log);
+  let gfPlan = null;
+  if (opts.gfAbilities !== 'vanilla') {
+    gfPlan = planGfs(d1.gfs, opts.gfAbilities, rng);
+    if (gfPlan) log(`Shuffled the abilities 16 Guardian Forces learn (${opts.gfAbilities}).`);
+    else { const msg = 'GF ability shuffle couldn’t find an arrangement; GFs keep their own abilities.'; log(msg); notes.push(msg); }
+  }
 
   fs.mkdirSync(outDir, { recursive: true });
   const discFiles = [];
@@ -206,6 +249,16 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
         info.copy(file, e.offsets[6]);
         pb.writeFile({ name: e.name || 'enemy', lba: e.lba, size: file.length }, file);
       });
+      if (gfPlan) {
+        if (!d.gfs || !d.kernel) { const msg = `Disc ${i + 1}: GF ability lists not found; that disc keeps vanilla GF abilities.`; log(msg); notes.push(msg); }
+        else {
+          // kernel.bin, rewritten in place (same size): only the ability ids in section 2 change.
+          const kern = Buffer.from(d.kernel.data.subarray(0, d.kernel.offs[d.kernel.count - 1] + 4096));
+          const base = d.kernel.offs[2];
+          gfPlan.forEach((l, g) => l.forEach((a, j) => kern.writeUInt16LE(a, base + g * dd.GF.size + dd.GF.list + 4 * j + dd.GF.abilityAt)));
+          pb.writeFile({ name: 'kernel.bin', lba: d.kernel.lba, size: kern.length }, kern);
+        }
+      }
       const out = path.join(outDir, `disc${i + 1}.prhp`);
       pb.save(out);
       discFiles.push(out);
@@ -215,7 +268,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     }
   }
 
-  const text = spoilerText({ seed, opts, enemies: d1.enemies, plans, magicNames: d1.magicNames, itemNames: d1.itemNames, notes });
+  const text = spoilerText({ seed, opts, enemies: d1.enemies, plans, magicNames: d1.magicNames, itemNames: d1.itemNames, notes, gfPlan, abilityNames: d1.abilityNames });
   if (spoiler) fs.writeFileSync(path.join(outDir, 'spoiler.txt'), text);
   fs.writeFileSync(path.join(outDir, 'seed.json'), JSON.stringify({ version: VERSION, seed, options: opts, notes, discs: discs.map((x) => x || null) }, null, 2));
   return { discFiles, options: opts, notes, spoiler: spoiler ? text : '' };

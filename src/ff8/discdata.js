@@ -84,7 +84,7 @@ function readKernel(disc, k) {
   const size = offs[n - 1] + 8192; // (last section is short)
   const data = disc.readExtent(k.lba, size);
   const sec = (i) => data.subarray(offs[i], i + 1 < n ? offs[i + 1] : Math.min(data.length, offs[i] + 4096));
-  return { sec, count: n };
+  return { sec, count: n, offs, data, lba: k.lba };
 }
 
 // Magic names: kernel section 1 has 57 x 60-byte entries whose first u16 is the name's offset in a text section.
@@ -132,6 +132,47 @@ function itemNames(kern) {
   return ['', ...b, ...other.names];
 }
 
+// Abilities (ids 0-115): kernel sections 11-17 in order (junction, command, character, party, GF, menu...), each
+// 8-byte entries starting with a name offset; their text sections are found by content.
+const ABILITY_SECTIONS = [11, 12, 13, 14, 15, 16, 17];
+function abilityNames(kern) {
+  const names = [];
+  for (const d of ABILITY_SECTIONS) {
+    const ds = kern.sec(d);
+    if (ds.length % 8) return null;
+    const offs = Array.from({ length: ds.length / 8 }, (_, i) => ds.readUInt16LE(8 * i));
+    // Names start right after a terminator (or at the start of the text); the usual text section (41 + k) wins ties.
+    let best = null;
+    const k = ABILITY_SECTIONS.indexOf(d);
+    const order = [41 + k, ...Array.from({ length: kern.count - 31 }, (_, i) => 31 + i).filter((t) => t !== 41 + k)];
+    for (const t of order) {
+      if (t >= kern.count) continue;
+      const ts = kern.sec(t);
+      if (!offs.every((o) => o === 0xffff || o < ts.length)) continue;
+      const n = offs.map((o) => (o === 0xffff ? '' : decode(ts, o, o + 32)));
+      const score = new Set(n.filter((x, i) => x && x.length <= 16 && /^[A-Z]/.test(x) && (offs[i] === 0 || ts[offs[i] - 1] === 0))).size;
+      if (!best || score > best.score) best = { n, score };
+    }
+    if (!best || best.score < offs.length * 0.7) return null;
+    names.push(...best.n);
+  }
+  return names.length === 116 ? names : null;
+}
+
+// Guardian Forces (kernel section 2): 16 x 132 bytes; each learns 21 abilities, 4-byte entries from +0x18 with the
+// ability id (u16) at +2. Checked: every id is 0-115, and the first GF's list is Quezacotl's.
+const GF = { count: 16, size: 132, list: 0x18, entries: 21, abilityAt: 2 };
+function readGfs(kern) {
+  const g = kern.sec(2);
+  if (g.length !== GF.count * GF.size) return null;
+  const gfs = [];
+  for (let i = 0; i < GF.count; i++) {
+    const at = i * GF.size + GF.list;
+    gfs.push(Array.from({ length: GF.entries }, (_, j) => g.readUInt16LE(at + 4 * j + GF.abilityAt)));
+  }
+  return gfs.every((l) => l.every((a) => a <= 115)) ? gfs : null;
+}
+
 function readEnemy(disc, e) {
   const raw = disc.readExtent(e.lba, e.offsets[7]);
   const info = raw.subarray(e.offsets[6], e.offsets[7]);
@@ -152,11 +193,21 @@ function load(discPath) {
     const img = findImg(disc);
     const { enemies, kernel } = scan(disc, img);
     const list = enemies.map((e) => ({ ...e, ...readEnemy(disc, e) }));
-    let names = null, items = null;
+    let names = null, items = null, abilities = null, gfs = null, kern = null;
     if (kernel) {
-      try { const kern = readKernel(disc, kernel); names = magicNames(kern); items = itemNames(kern); } catch (_) { /* names are optional */ }
+      try {
+        kern = readKernel(disc, kernel);
+        names = magicNames(kern); items = itemNames(kern); abilities = abilityNames(kern); gfs = readGfs(kern);
+      } catch (_) { /* optional */ }
     }
-    return { img, enemies: list, magicNames: names, itemNames: items };
+    // GF lists are only trusted when the first one reads as Quezacotl's (Card Mod and T Mag-RF among them), which
+    // holds on an unmodified disc; gfLists keeps whatever was read (for checking a patched disc).
+    const gfLists = gfs;
+    if (gfs && abilities) {
+      const q = gfs[0].map((a) => abilities[a]);
+      if (!(q.includes('Card Mod') && q.includes('T Mag-RF') && q.includes('Card'))) gfs = null;
+    } else gfs = null;
+    return { img, enemies: list, magicNames: names, itemNames: items, abilityNames: abilities, gfs, gfLists, kernel: kern };
   } finally {
     disc.close();
   }
@@ -178,4 +229,4 @@ function validate(d) {
   return { ok: n >= 100 && bad <= Math.max(2, n * 0.03), problems };
 }
 
-module.exports = { load, validate, decode, findImg, INFO, INFO_SIZE, MAGIC_MAX, ITEM_MAX, COOKED, get itemNamesFound() { return itemNames.found; } };
+module.exports = { load, validate, decode, findImg, INFO, INFO_SIZE, MAGIC_MAX, ITEM_MAX, COOKED, GF, get itemNamesFound() { return itemNames.found; } };

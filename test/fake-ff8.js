@@ -8,6 +8,7 @@ const { fixSector } = require('../src/cdsector');
 const CH = new Map([[' ', 0x20]]);
 for (let i = 0; i < 10; i++) CH.set(String(i), 0x21 + i);
 for (let i = 0; i < 26; i++) { CH.set(String.fromCharCode(65 + i), 0x45 + i); CH.set(String.fromCharCode(97 + i), 0x5f + i); }
+CH.set('-', 0x32);
 const enc = (s) => Buffer.from([...[...s].map((c) => CH.get(c) || 0x20), 0]);
 
 const MAGIC = Array.from({ length: 57 }, (_, i) => (i === 0 ? '' : `Spell ${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(97 + (i % 7))}`));
@@ -20,6 +21,33 @@ function sections(list) {
   return Buffer.concat([head, ...list]);
 }
 
+// Abilities 0-115 in sections 11-17 (8-byte entries) with names in text sections 41-47. Three real ability names
+// are used so the loader's "first GF looks right" check passes; the rest are made up.
+const ABILITY_COUNTS = [20, 19, 19, 20, 5, 9, 24];
+const L = (i) => String.fromCharCode(65 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26));
+const ABILITY = Array.from({ length: 116 }, (_, i) => ({ 25: 'Card', 97: 'T Mag-RF', 115: 'Card Mod' })[i] || `Skill ${L(i)}`);
+// GF g learns 21 abilities: GF 0 has the three real ones; the first four GFs bring the basic commands 20-23;
+// the last slot of every other GF is empty.
+const GF_LISTS = Array.from({ length: 16 }, (_, g) => {
+  const l = g === 0 ? [25, 97, 115, 20] : g < 4 ? [20 + g] : [];
+  for (let k = 0; l.length < 21; k++) { const a = 24 + ((g * 5 + k * 7) % 92); if (!l.includes(a) && ![25, 97, 115].includes(a)) l.push(a); }
+  if (g % 2) l[20] = 0;
+  return l;
+});
+
+function abilityTables(list) {
+  let at = 0;
+  ABILITY_COUNTS.forEach((n, k) => {
+    const names = ABILITY.slice(at, at + n); at += n;
+    const tbl = Buffer.alloc(8 * n); const txt = []; let pos = 0;
+    names.forEach((nm, i) => { const b = enc(nm); tbl.writeUInt16LE(pos, 8 * i); txt.push(b); pos += b.length; });
+    list[11 + k] = tbl; list[41 + k] = Buffer.concat(txt);
+  });
+  const gf = Buffer.alloc(16 * 132);
+  GF_LISTS.forEach((l, g) => l.forEach((a, j) => { gf[g * 132 + 0x18 + 4 * j] = j + 1; gf.writeUInt16LE(a, g * 132 + 0x18 + 4 * j + 2); }));
+  list[2] = gf;
+}
+
 function kernel() {
   const text = [];
   let pos = 0;
@@ -29,6 +57,7 @@ function kernel() {
   const list = Array.from({ length: 56 }, (_, i) => Buffer.alloc(16 + (i % 5) * 8, i));
   list[1] = magic;
   list[32] = Buffer.concat(text);
+  abilityTables(list);
   return sections(list);
 }
 
@@ -126,4 +155,4 @@ function buildDisc({ n = 1, serial = ['SLUS_008.92', 'SLUS_009.08', 'SLUS_009.09
   return img2352;
 }
 
-module.exports = { buildDisc, MAGIC, ENEMIES };
+module.exports = { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS };
