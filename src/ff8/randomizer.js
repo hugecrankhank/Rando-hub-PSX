@@ -44,15 +44,17 @@ const inspect = (discPath) => {
 const features = (r) => ({ draws: r.ok, items: r.ok, cards: r.ok, mults: r.ok, gfAbilities: !!r.gfOk });
 
 // ------------------------------------------------------------------ GF abilities
-// Moves only ability ids between GFs' learn-list slots (each slot keeps its own unlock settings), never puts the
-// same ability twice on one GF, and keeps a GF's empty slots empty. "balanced" leaves Magic, GF, Draw and Item
-// (ids 20-23) where they are, so the first GFs still bring the basic commands; "chaos" moves everything.
+// Moves only ability ids between GFs' learn-list slots (each slot keeps its own unlock rule), never puts the same
+// ability twice on one GF, and keeps empty slots empty. Upgrade chains stay whole: a slot that unlocks after another
+// slot (SumMag+20% after SumMag+10%, Card Mod after Card...) keeps its ability, and so does the slot it waits on.
+// "balanced" also leaves Magic, GF, Draw and Item (ids 20-23) where they are; "chaos" lets those move too.
 const BASIC = new Set([20, 21, 22, 23]);
-function planGfs(gfs, mode, rng) {
-  const keep = (a) => a === 0 || (mode === 'balanced' && BASIC.has(a));
+function planGfs(gfs, unlock, mode, rng) {
+  const chained = gfs.map((l, g) => l.map((_, j) => unlock[g][j] >= 100 || unlock[g].some((u) => u === 101 + j)));
+  const keep = (g, j) => gfs[g][j] === 0 || chained[g][j] || (mode === 'balanced' && BASIC.has(gfs[g][j]));
   for (let attempt = 0; attempt < 50; attempt++) {
-    const pool = rng.shuffle(gfs.flatMap((l) => l.filter((a) => !keep(a))));
-    const out = gfs.map((l) => l.map((a) => (keep(a) ? a : null)));
+    const pool = rng.shuffle(gfs.flatMap((l, g) => l.filter((_, j) => !keep(g, j))));
+    const out = gfs.map((l, g) => l.map((a, j) => (keep(g, j) ? a : null)));
     let ok = true;
     for (let g = 0; g < out.length && ok; g++) {
       for (let j = 0; j < out[g].length && ok; j++) {
@@ -222,7 +224,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
   const plans = plan(d1.enemies, opts, rng, log);
   let gfPlan = null;
   if (opts.gfAbilities !== 'vanilla') {
-    gfPlan = planGfs(d1.gfs, opts.gfAbilities, rng);
+    gfPlan = planGfs(d1.gfs, d1.gfUnlock, opts.gfAbilities, rng);
     if (gfPlan) log(`Shuffled the abilities 16 Guardian Forces learn (${opts.gfAbilities}).`);
     else { const msg = 'GF ability shuffle couldn’t find an arrangement; GFs keep their own abilities.'; log(msg); notes.push(msg); }
   }

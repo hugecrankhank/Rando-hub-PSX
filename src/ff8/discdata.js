@@ -159,18 +159,20 @@ function abilityNames(kern) {
   return names.length === 116 ? names : null;
 }
 
-// Guardian Forces (kernel section 2): 16 x 132 bytes; each learns 21 abilities, 4-byte entries from +0x18 with the
-// ability id (u16) at +2. Checked: every id is 0-115, and the first GF's list is Quezacotl's.
-const GF = { count: 16, size: 132, list: 0x18, entries: 21, abilityAt: 2 };
+// Guardian Forces (kernel section 2): 16 x 132 bytes; each learns 21 abilities, 4-byte entries from +0x1C:
+// unlock rule (1 = from the start, 2-99 = at that GF level, 100+k = after learning the GF's slot k, counted from 1),
+// 0xFF, ability id (u16). Checked on the real discs: every GF's list decodes to its own abilities.
+const GF = { count: 16, size: 132, list: 0x1c, entries: 21, abilityAt: 2 };
 function readGfs(kern) {
   const g = kern.sec(2);
   if (g.length !== GF.count * GF.size) return null;
-  const gfs = [];
+  const gfs = [], unlock = [];
   for (let i = 0; i < GF.count; i++) {
     const at = i * GF.size + GF.list;
     gfs.push(Array.from({ length: GF.entries }, (_, j) => g.readUInt16LE(at + 4 * j + GF.abilityAt)));
+    unlock.push(Array.from({ length: GF.entries }, (_, j) => g[at + 4 * j]));
   }
-  return gfs.every((l) => l.every((a) => a <= 115)) ? gfs : null;
+  return gfs.every((l) => l.every((a) => a <= 115)) ? { gfs, unlock } : null;
 }
 
 function readEnemy(disc, e) {
@@ -193,11 +195,12 @@ function load(discPath) {
     const img = findImg(disc);
     const { enemies, kernel } = scan(disc, img);
     const list = enemies.map((e) => ({ ...e, ...readEnemy(disc, e) }));
-    let names = null, items = null, abilities = null, gfs = null, kern = null;
+    let names = null, items = null, abilities = null, gfs = null, gfUnlock = null, kern = null;
     if (kernel) {
       try {
         kern = readKernel(disc, kernel);
-        names = magicNames(kern); items = itemNames(kern); abilities = abilityNames(kern); gfs = readGfs(kern);
+        names = magicNames(kern); items = itemNames(kern); abilities = abilityNames(kern);
+        const r = readGfs(kern); if (r) { gfs = r.gfs; gfUnlock = r.unlock; }
       } catch (_) { /* optional */ }
     }
     // GF lists are only trusted when the first one reads as Quezacotl's (Card Mod and T Mag-RF among them), which
@@ -207,7 +210,7 @@ function load(discPath) {
       const q = gfs[0].map((a) => abilities[a]);
       if (!(q.includes('Card Mod') && q.includes('T Mag-RF') && q.includes('Card'))) gfs = null;
     } else gfs = null;
-    return { img, enemies: list, magicNames: names, itemNames: items, abilityNames: abilities, gfs, gfLists, kernel: kern };
+    return { img, enemies: list, magicNames: names, itemNames: items, abilityNames: abilities, gfs, gfLists, gfUnlock, kernel: kern };
   } finally {
     disc.close();
   }

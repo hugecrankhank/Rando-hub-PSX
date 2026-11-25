@@ -325,6 +325,7 @@ function optionChips(o) {
   if (o.draws !== 'vanilla') c.push(`Draws: ${o.draws}`);
   if (o.items !== 'vanilla') c.push(`Items: ${o.items}`);
   if (o.cards !== 'vanilla') c.push('Cards shuffled');
+  if (o.gfAbilities && o.gfAbilities !== 'vanilla') c.push(`GF abilities: ${o.gfAbilities}`);
   for (const [k, l] of [['expMult', 'EXP'], ['apMult', 'AP']]) if (o[k] !== 1) c.push(`${l} ×${o[k]}`);
   return c;
 }
@@ -401,7 +402,7 @@ async function renderSettings() {
   const note = $('featureNote');
   if (d1 && d1.ok && d1.features) {
     const off = Object.entries(d1.features).filter(([, v]) => !v).map(([k]) => k);
-    const label = { draws: 'draws', items: 'mugs & drops', cards: 'cards', mults: 'EXP/AP' };
+    const label = { draws: 'draws', items: 'mugs & drops', cards: 'cards', mults: 'EXP/AP', gfAbilities: 'GF abilities' };
     note.textContent = off.length
       ? `Your Disc 1 didn't pass the checks for: ${off.map((k) => label[k] || k).join(', ')}. Those options will be skipped. Details (send these to Hank): ${(d1.problems || []).join(' ')}`
       : '';

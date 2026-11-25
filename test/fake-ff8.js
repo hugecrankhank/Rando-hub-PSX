@@ -35,6 +35,9 @@ const GF_LISTS = Array.from({ length: 16 }, (_, g) => {
   return l;
 });
 
+// Unlock rules: slot 5 waits on slot 4 (102+... style: 100 + slot number), slot 9 needs GF level 10, the rest are open.
+const GF_UNLOCK = GF_LISTS.map(() => Array.from({ length: 21 }, (_, j) => (j === 5 ? 105 : j === 9 ? 10 : 1)));
+
 function abilityTables(list) {
   let at = 0;
   ABILITY_COUNTS.forEach((n, k) => {
@@ -44,7 +47,8 @@ function abilityTables(list) {
     list[11 + k] = tbl; list[41 + k] = Buffer.concat(txt);
   });
   const gf = Buffer.alloc(16 * 132);
-  GF_LISTS.forEach((l, g) => l.forEach((a, j) => { gf[g * 132 + 0x18 + 4 * j] = j + 1; gf.writeUInt16LE(a, g * 132 + 0x18 + 4 * j + 2); }));
+  GF_LISTS.forEach((l, g) => l.forEach((a, j) => { gf[g * 132 + 0x1c + 4 * j] = GF_UNLOCK[g][j]; gf[g * 132 + 0x1d + 4 * j] = 0xff; gf.writeUInt16LE(a, g * 132 + 0x1c + 4 * j + 2); }));
+  gf.fill(0x6c, 0x70, 132); // (stand-in for the rest of each GF)
   list[2] = gf;
 }
 
@@ -155,4 +159,4 @@ function buildDisc({ n = 1, serial = ['SLUS_008.92', 'SLUS_009.08', 'SLUS_009.09
   return img2352;
 }
 
-module.exports = { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS };
+module.exports = { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS, GF_UNLOCK };

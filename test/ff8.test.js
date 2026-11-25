@@ -5,7 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS } = require('./fake-ff8');
+const { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS, GF_UNLOCK } = require('./fake-ff8');
 const { PatchedImage, loadPatch } = require('../src/discpatch');
 const { verifySector } = require('../src/cdsector');
 const dd = require('../src/ff8/discdata');
@@ -73,6 +73,7 @@ test('same seed + options = same patch; another seed differs; vanilla changes no
 test('GF abilities: lists read; balanced keeps basic commands, moves the rest, no repeats, rest of kernel untouched', async () => {
   const d = dd.load(discs[0]);
   assert.deepStrictEqual(d.gfs, GF_LISTS);
+  assert.deepStrictEqual(d.gfUnlock, GF_UNLOCK);
   assert.strictEqual(d.abilityNames[97], 'T Mag-RF');
   assert.strictEqual(d.abilityNames[1], ABILITY[1]);
   assert.ok(ff8.inspect(discs[0]).gfOk);
@@ -89,12 +90,15 @@ test('GF abilities: lists read; balanced keeps basic commands, moves the rest, n
         const real = l.filter(Boolean);
         assert.strictEqual(new Set(real).size, real.length, 'no GF learns an ability twice');
         l.forEach((a, j) => { if (GF_LISTS[k][j] === 0) assert.strictEqual(a, 0, 'empty slots stay empty'); });
+        assert.strictEqual(l[4], GF_LISTS[k][4], 'a slot another slot waits on keeps its ability');
+        assert.strictEqual(l[5], GF_LISTS[k][5], 'a slot that waits on another keeps its ability');
+        assert.deepStrictEqual(g.gfUnlock[k], GF_UNLOCK[k], 'unlock rules untouched');
         if (mode === 'balanced') l.forEach((a, j) => { if (GF_LISTS[k][j] >= 20 && GF_LISTS[k][j] <= 23) assert.strictEqual(a, GF_LISTS[k][j]); });
       });
       // Only the ability ids changed: the kernel matches vanilla everywhere else, enemies untouched.
       const a = g.kernel.data, b = v.kernel.data;
       const ids = new Set();
-      for (let k = 0; k < 16; k++) for (let j = 0; j < 21; j++) { const o = b.length && v.kernel.offs[2] + k * 132 + 0x18 + 4 * j + 2; ids.add(o); ids.add(o + 1); }
+      for (let k = 0; k < 16; k++) for (let j = 0; j < 21; j++) { const o = v.kernel.offs[2] + k * 132 + 0x1c + 4 * j + 2; ids.add(o); ids.add(o + 1); }
       for (let x = 0; x < b.length; x++) if (a[x] !== b[x]) assert.ok(ids.has(x), `kernel byte ${x} changed`);
       assert.deepStrictEqual(g.enemies.map((e) => e.raw.toString('hex')), v.enemies.map((e) => e.raw.toString('hex')));
       for (const s of loadPatch(res.discFiles[i]).sectors.values()) assert.ok(verifySector(Buffer.from(s)));
