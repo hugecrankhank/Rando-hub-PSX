@@ -13,7 +13,7 @@ const { PatchBuilder } = require('../discpatch');
 const dd = require('./discdata');
 const { makeRng } = require('../ff7/rng');
 
-const VERSION = 1;
+const VERSION = 2;
 const SERIALS = ['SLUS_008.92', 'SLUS_009.08', 'SLUS_009.09', 'SLUS_009.10'];
 const BANDS = ['low', 'mid', 'high'];
 
