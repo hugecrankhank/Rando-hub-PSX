@@ -1,7 +1,7 @@
 # PSX Rando Hub
 
 A Windows desktop hub for PlayStation randomizers: built-in emulator, auto-tracker and seed generator in one window.
-Games: **Castlevania: Symphony of the Night (USA)** and **Final Fantasy VII (USA)**. Switch between them with the game name in the top-left corner.
+Games: **Castlevania: Symphony of the Night (USA)**, **Final Fantasy VII (USA)** and **Final Fantasy VIII (USA)**. Switch between them with the game name in the top-left corner.
 
 - **Emulator** — EmulatorJS running a libretro PS1 core (PCSX ReARMed by default, Beetle PSX HW optional) inside the app. Gamepad, save states and key mapping live in the emulator's own toolbar (hover the game).
 - **Seed generator** — the community SotN Randomizer (the logic behind sotn.io). Every preset it ships, custom seed names, tournament mode, spoiler logs, seed history.
@@ -72,6 +72,23 @@ Presets: Casual, Standard, Wild, Chaos and Drops only. Every seed comes with a s
 **Changing discs.** When the game asks for the next disc, save to your memory card, then press **Disc 2** (or 3) under the game. The emulator restarts with that disc; pick Continue and load your save. The memory card is shared by all three discs of a seed.
 
 **Tracker.** Summons, command, support and key magic materia light up automatically when they're in your materia list or equipped. The party, everyone's level, gil, in-game time and story progress update live. Bosses are a checklist. Click a tile to mark it yourself.
+
+## Final Fantasy VIII
+
+FF8 also uses the hub's **own seed generator**. You need your four USA discs as .bin files (SLUS-00892, -00908, -00909, -00910). Pick them under **Settings** on the FF8 page (game name, top left).
+
+**What a seed can change**
+
+| Option | Choices |
+| --- | --- |
+| Magic you can draw from enemies | Vanilla, shuffled within each enemy level band (fair), shuffled across every enemy, or random from the game's draw lists |
+| Items you mug and enemies drop | Vanilla, shuffled within each level band, shuffled across every enemy, or random |
+| Cards enemies give | Vanilla or shuffled |
+| EXP / AP | ×1 to ×4 |
+
+Guardian Forces you draw from bosses always stay where they are, so every GF can still be had. Presets: Casual, Standard, Wild, Chaos and Draws only. Every seed has a spoiler log with the real magic and item names, read from your disc.
+
+**How it works.** FF8 keeps its data in one big file per disc (FF8DISC*.IMG), uncompressed. The generator finds all 143 enemy files in it, plans the seed from Disc 1 and writes the same changes to all four discs, each in place and the same size, so nothing ever runs out of room. **Tracker:** the 16 GFs, key moments and bosses, click to mark; reading them from game memory is next.
 
 ## How auto-tracking works
 

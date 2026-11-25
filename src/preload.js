@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('hub', {
     checkForUpdates: () => invoke('license:updates'),
     onChange: (cb) => ipcRenderer.on('license:state', (_e, v) => cb(v)),
   },
+  // Multi-disc games with our own generators: hub.ff7, hub.ff8 (same calls, own channels).
   ff7: {
     checkDiscs: () => invoke('ff7:checkDiscs'),
     names: () => invoke('ff7:names'),
@@ -37,6 +38,15 @@ contextBridge.exposeInMainWorld('hub', {
     generate: (opts) => invoke('ff7:generate', opts),
     load: (seedId, disc) => invoke('ff7:load', { seedId, disc }),
     exportSeed: (seedId) => invoke('ff7:export', seedId),
+  },
+  ff8: {
+    checkDiscs: () => invoke('ff8:checkDiscs'),
+    names: () => invoke('ff8:names'),
+    presets: () => invoke('ff8:presets'),
+    resolveCue: (p) => invoke('ff8:resolveCue', p),
+    generate: (opts) => invoke('ff8:generate', opts),
+    load: (seedId, disc) => invoke('ff8:load', { seedId, disc }),
+    exportSeed: (seedId) => invoke('ff8:export', seedId),
   },
   spoiler: (id) => invoke('seeds:spoiler', id),
   deleteSeed: (id) => invoke('seeds:delete', id),

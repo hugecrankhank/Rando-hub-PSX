@@ -1,0 +1,51 @@
+{
+  "id": "ff8",
+  "title": "Final Fantasy VIII",
+  "region": "USA",
+  "discs": [
+    { "n": 1, "serial": "SLUS_008.92", "aliases": ["SLUS_008.92", "SLUS_00892"] },
+    { "n": 2, "serial": "SLUS_009.08", "aliases": ["SLUS_009.08", "SLUS_00908"] },
+    { "n": 3, "serial": "SLUS_009.09", "aliases": ["SLUS_009.09", "SLUS_00909"] },
+    { "n": 4, "serial": "SLUS_009.10", "aliases": ["SLUS_009.10", "SLUS_00910"] }
+  ],
+  "tracker": {
+    "groups": [
+      {
+        "name": "Guardian Forces",
+        "items": [
+          { "name": "Quezacotl", "short": "QUEZ" },
+          { "name": "Shiva", "short": "SHIV" },
+          { "name": "Ifrit", "short": "IFRT" },
+          { "name": "Siren", "short": "SIRN" },
+          { "name": "Brothers", "short": "BROS" },
+          { "name": "Diablos", "short": "DIAB" },
+          { "name": "Carbuncle", "short": "CARB", "key": true },
+          { "name": "Leviathan", "short": "LEVI" },
+          { "name": "Pandemona", "short": "PAND" },
+          { "name": "Cerberus", "short": "CERB", "key": true },
+          { "name": "Alexander", "short": "ALEX" },
+          { "name": "Doomtrain", "short": "DOOM" },
+          { "name": "Bahamut", "short": "BAHA" },
+          { "name": "Cactuar", "short": "CACT" },
+          { "name": "Tonberry", "short": "TONB" },
+          { "name": "Eden", "short": "EDEN", "key": true }
+        ]
+      },
+      {
+        "name": "Key moments",
+        "items": [
+          { "name": "SeeD exam passed", "short": "SEED" },
+          { "name": "Garden is mobile", "short": "MOBL" },
+          { "name": "Ragnarok", "short": "RAGN", "key": true },
+          { "name": "Lunatic Pandora", "short": "LUNA" }
+        ]
+      }
+    ],
+    "bosses": [
+      "Ifrit", "X-ATM092", "Elvoret", "Biggs & Wedge", "Gerogero", "Iguion", "Edea (Parade)", "Raijin",
+      "Fujin & Raijin", "Cerberus", "BGH251F2", "Oilboyle", "NORG", "Raijin & Fujin (Lunatic)", "Seifer (Garden)",
+      "Edea (Garden)", "Abadon", "Propagators", "Mobile Type 8", "Seifer (Lunatic)", "Adel", "Ultimecia"
+    ],
+    "optionalBosses": ["Diablos", "Odin", "Tonberry King", "Cactuar", "Bahamut", "Ultima Weapon", "Omega Weapon"]
+  }
+}

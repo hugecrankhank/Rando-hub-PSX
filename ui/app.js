@@ -6,7 +6,8 @@ const $ = (id) => document.getElementById(id);
 
 // Reopen the game you used last; the switcher in the top bar changes it.
 try {
-  if (localStorage.getItem('lastGame') === 'ff7' && !location.search.includes('stay')) location.replace('ff7.html');
+  const last = localStorage.getItem('lastGame');
+  if ((last === 'ff7' || last === 'ff8') && !location.search.includes('stay')) location.replace(last + '.html');
   else localStorage.setItem('lastGame', GAME_ID);
 } catch (_) { /* storage unavailable */ }
 $('gameSwitch').addEventListener('change', (e) => {

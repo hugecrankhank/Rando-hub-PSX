@@ -1,6 +1,6 @@
 # PSX Rando Hub
 
-Robert's Windows desktop hub (Electron) for PlayStation randomizers: built-in emulator, auto-tracker and seed generator in one window. Games: Castlevania: Symphony of the Night (USA) and Final Fantasy VII (USA).
+Robert's Windows desktop hub (Electron) for PlayStation randomizers: built-in emulator, auto-tracker and seed generator in one window. Games: Castlevania: Symphony of the Night (USA), Final Fantasy VII (USA) and Final Fantasy VIII (USA).
 
 - Emulator: EmulatorJS with a libretro PS1 core (PCSX ReARMed default, Beetle PSX HW optional).
 - Seeds: the community SotN Randomizer, downloaded into `vendor/` by `npm run setup` (not committed).
@@ -12,6 +12,7 @@ Robert's Windows desktop hub (Electron) for PlayStation randomizers: built-in em
 - `src/`: Electron main process (`main.js`, `preload.js`), disc reading (`disc.js`, `zipdisc.js`), the seed generator glue (`randomizer.js`), the map (`sotn-map.js`).
 - `ui/`: the window (`index.html`, `app.js`, `emu.html`, `memory.js` for the autotracker, `popout.html`).
 - FF7: `src/ff7/` is the hub's own seed generator (`kernel.js`, `scene.js` read/write the disc files; `randomizer.js` plans and applies a seed). `src/discpatch.js` stores seeds as sector patches and streams disc + patch; `src/cdsector.js` fixes sector error codes. UI is `ui/ff7.html` + `ui/ff7.js`, tracker logic in `ui/ff7-track.js`, data in `games/ff7.json`. Tests use a made-up disc (`test/fake-ff7.js`), never real game data.
+- FF8: `src/ff8/discdata.js` finds kernel.bin and the 143 enemy files inside FF8DISC*.IMG by their headers (uncompressed, sector-aligned) and reads/validates each enemy's 380-byte info block; `src/ff8/randomizer.js` shuffles draws, mugs/drops and cards and scales EXP/AP, in place. UI `ui/ff8.html` + `ui/ff8.js`, data `games/ff8.json`, tests on `test/fake-ff8.js`. FF7 and FF8 share the multi-disc handlers in `main.js` (`DISC_GAMES`, channels `<id>:…`).
 - `games/sotn.json`: the game's data. `scripts/`: `setup.js`, `smoke-packaged.js`. `test/`: disc, memory and map tests.
 
 ## Commands

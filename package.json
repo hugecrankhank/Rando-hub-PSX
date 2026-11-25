@@ -1,13 +1,13 @@
 {
   "name": "psx-rando-hub",
   "productName": "PSX Rando Hub",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Desktop PlayStation hub: built-in emulator, auto-tracker and seed generator. First game: Castlevania: Symphony of the Night.",
   "main": "src/main.js",
   "scripts": {
     "setup": "node scripts/setup.js",
     "start": "electron .",
-    "test": "node test/disc.test.js && node test/memory.test.js && node test/map.test.js && node test/ff7.test.js && node test/ff7-track.test.js && node test/license.test.js",
+    "test": "node test/disc.test.js && node test/memory.test.js && node test/map.test.js && node test/ff7.test.js && node test/ff7-track.test.js && node test/license.test.js && node test/ff8.test.js",
     "dist": "electron-builder --win nsis portable"
   },
   "author": "Robert",
