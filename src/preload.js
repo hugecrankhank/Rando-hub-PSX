@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('hub', {
     generate: (opts) => invoke('ff8:generate', opts),
     load: (seedId, disc) => invoke('ff8:load', { seedId, disc }),
     exportSeed: (seedId) => invoke('ff8:export', seedId),
+    art: () => invoke('ff8:art'),
   },
   spoiler: (id) => invoke('seeds:spoiler', id),
   deleteSeed: (id) => invoke('seeds:delete', id),
