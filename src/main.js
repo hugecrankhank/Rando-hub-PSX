@@ -11,6 +11,7 @@ const { prepareDiscZip } = require('./zipdisc');
 const { loadMapModel } = require('./sotn-map');
 const { PatchedImage } = require('./discpatch');
 const ff7 = require('./ff7/randomizer');
+const ff8 = require('./ff8/randomizer');
 const { createLicense } = require('./license');
 
 const ROOT = path.join(__dirname, '..');
@@ -34,7 +35,7 @@ protocol.registerSchemesAsPrivileged([
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 const DEFAULTS = () => ({
   biosPath: '',
-  games: { sotn: { vanillaBin: '' }, ff7: { discs: ['', '', ''] } },
+  games: { sotn: { vanillaBin: '' }, ff7: { discs: ['', '', ''] }, ff8: { discs: ['', '', '', ''] } },
   seedsDir: path.join(app.getPath('userData'), 'seeds'),
   randomizerDir: path.join(VENDOR_DIR, 'sotn-randomizer'),
   emulatorData: 'cache', // 'cache' = download once then offline; 'cdn' = always refresh from CDN
@@ -339,7 +340,7 @@ function registerIpc() {
   ipcMain.handle('seeds:list', (_e, gameId) => (settings.seeds || []).filter((s) => {
     const g = s.gameId || 'sotn';
     if (g !== (gameId || 'sotn')) return false;
-    return g === 'ff7' ? fs.existsSync(path.join(s.dir, 'disc1.prhp')) : fs.existsSync(s.bin);
+    return DISC_GAMES[g] ? fs.existsSync(path.join(s.dir, 'disc1.prhp')) : fs.existsSync(s.bin);
   }));
   ipcMain.handle('seeds:spoiler', (_e, id) => {
     const s = (settings.seeds || []).find((x) => x.id === id);
@@ -354,7 +355,7 @@ function registerIpc() {
     saveSettings();
     return true;
   });
-  registerFf7Ipc();
+  registerDiscGamesIpc();
   ipcMain.handle('popout:open', () => { openPopout(); return true; });
   ipcMain.handle('popout:get', () => ({ state: popoutState, prefs: settings.popout || {} }));
   ipcMain.on('popout:state', (_e, st) => {
@@ -373,26 +374,46 @@ function registerIpc() {
   });
 }
 
-// ---------------------------------------------------------------- Final Fantasy VII
-const ff7Discs = () => (settings.games.ff7 && settings.games.ff7.discs) || ['', '', ''];
-const ff7NamesFile = () => path.join(app.getPath('userData'), 'ff7-names.json');
+// ---------------------------------------------------------------- multi-disc games with our own generators
+// Final Fantasy VII (3 discs) and VIII (4 discs): the same handlers, on channels "<id>:…".
+// G: { id, title, count, mod, check(discPath) -> { features, problems, names } }
+const DISC_GAMES = {
+  ff7: {
+    id: 'ff7', title: 'Final Fantasy VII', count: 3, mod: ff7,
+    check: (p) => { const r = ff7.inspect(p); return { features: ff7.features(r.kernel, r.scene), problems: [...r.kernel.problems, ...r.scene.problems], names: r.names }; },
+  },
+  ff8: {
+    id: 'ff8', title: 'Final Fantasy VIII', count: 4, mod: ff8,
+    check: (p) => { const r = ff8.inspect(p); return { features: ff8.features(r), problems: r.problems, names: { magic: r.magicNames || [] } }; },
+  },
+};
 
-function registerFf7Ipc() {
+function registerDiscGamesIpc() {
+  for (const G of Object.values(DISC_GAMES)) registerDiscGameIpc(G);
+}
+
+function registerDiscGameIpc(G) {
+  const gid = G.id, mod = G.mod;
+  const gameDiscs = () => {
+    const d = (settings.games[gid] && settings.games[gid].discs) || [];
+    return Array.from({ length: G.count }, (_, i) => d[i] || '');
+  };
+  const namesFile = () => path.join(app.getPath('userData'), `${gid}-names.json`);
   // Check each picked disc; for Disc 1 also read the names the tracker uses
   // and which seed features its data supports.
-  ipcMain.handle('ff7:checkDiscs', () => {
-    const def = loadGameDef('ff7');
-    return ff7Discs().map((p, i) => {
+  ipcMain.handle(`${gid}:checkDiscs`, () => {
+    const def = loadGameDef(gid);
+    return gameDiscs().map((p, i) => {
       if (!p) return { set: false };
       try {
         const info = inspectDisc(p);
         const matches = def.discs[i].aliases.some((a) => a.toUpperCase() === info.exeName);
         const out = { set: true, ok: true, exeName: info.exeName, matches, expected: def.discs[i].serial };
         if (i === 0) {
-          const r = ff7.inspect(p);
-          out.features = ff7.features(r.kernel, r.scene);
-          out.problems = [...r.kernel.problems, ...r.scene.problems];
-          try { fs.writeFileSync(ff7NamesFile(), JSON.stringify({ disc: p, names: r.names })); } catch (_) { /* ignore */ }
+          const r = G.check(p);
+          out.features = r.features;
+          out.problems = r.problems;
+          try { fs.writeFileSync(namesFile(), JSON.stringify({ disc: p, names: r.names })); } catch (_) { /* ignore */ }
         }
         return out;
       } catch (e) {
@@ -401,12 +422,12 @@ function registerFf7Ipc() {
     });
   });
 
-  ipcMain.handle('ff7:names', () => {
-    try { return JSON.parse(fs.readFileSync(ff7NamesFile(), 'utf8')).names; } catch (_) { return null; }
+  ipcMain.handle(`${gid}:names`, () => {
+    try { return JSON.parse(fs.readFileSync(namesFile(), 'utf8')).names; } catch (_) { return null; }
   });
 
   // Picking a .cue: use the .bin it points to.
-  ipcMain.handle('ff7:resolveCue', (_e, p) => {
+  ipcMain.handle(`${gid}:resolveCue`, (_e, p) => {
     if (!/\.cue$/i.test(p)) return p;
     const m = /FILE\s+"([^"]+)"/i.exec(fs.readFileSync(p, 'utf8'));
     const bin = m && path.join(path.dirname(p), m[1]);
@@ -414,24 +435,24 @@ function registerFf7Ipc() {
     return bin;
   });
 
-  ipcMain.handle('ff7:presets', () => ({ presets: ff7.PRESETS, defaults: ff7.DEFAULT_OPTIONS }));
+  ipcMain.handle(`${gid}:presets`, () => ({ presets: mod.PRESETS, defaults: mod.DEFAULT_OPTIONS }));
 
-  ipcMain.handle('ff7:generate', async (e, opts) => {
+  ipcMain.handle(`${gid}:generate`, async (e, opts) => {
     needLicense();
-    const discs = ff7Discs();
-    if (!discs[0] || !fs.existsSync(discs[0])) throw new Error('Pick your Final Fantasy VII Disc 1 in Settings first.');
+    const discs = gameDiscs();
+    if (!discs[0] || !fs.existsSync(discs[0])) throw new Error(`Pick your ${G.title} Disc 1 in Settings first.`);
     const seed = (opts.seed || '').trim() || randomSeed();
     const label = sanitize(opts.presetLabel || 'custom');
-    const id = `ff7-${label}-${sanitize(seed)}-${Date.now().toString(36)}`;
+    const id = `${gid}-${label}-${sanitize(seed)}-${Date.now().toString(36)}`;
     const dir = path.join(settings.seedsDir, id);
     const send = (line) => e.sender.send('rando:log', line);
-    send(`Generating FF7 seed "${seed}"…`);
-    const res = await ff7.generate({
+    send(`Generating ${G.title} seed "${seed}"…`);
+    const res = await mod.generate({
       discs: discs.map((d) => (d && fs.existsSync(d) ? d : '')),
       outDir: dir, seed, options: opts.options, spoiler: opts.spoiler !== false,
     }, send);
     const entry = {
-      id, gameId: 'ff7', seed, preset: opts.presetLabel || 'Custom', options: res.options,
+      id, gameId: gid, seed, preset: opts.presetLabel || 'Custom', options: res.options,
       created: new Date().toISOString(), dir, discs: res.discFiles.map((f) => !!f),
     };
     settings.seeds = [entry, ...(settings.seeds || [])].slice(0, 200);
@@ -441,12 +462,12 @@ function registerFf7Ipc() {
   });
 
   // Start Disc N of a seed (or vanilla when seedId is null).
-  ipcMain.handle('ff7:load', async (_e, { seedId, disc }) => {
+  ipcMain.handle(`${gid}:load`, async (_e, { seedId, disc }) => {
     needLicense();
     if (!settings.biosPath || !fs.existsSync(settings.biosPath)) throw new Error('Pick your PlayStation BIOS in Settings first.');
-    const n = Math.max(1, Math.min(3, disc || 1));
-    const p = ff7Discs()[n - 1];
-    if (!p || !fs.existsSync(p)) throw new Error(`Pick your Final Fantasy VII Disc ${n} in Settings first.`);
+    const n = Math.max(1, Math.min(G.count, disc || 1));
+    const p = gameDiscs()[n - 1];
+    if (!p || !fs.existsSync(p)) throw new Error(`Pick your ${G.title} Disc ${n} in Settings first.`);
     let patch = null;
     if (seedId) {
       const s = (settings.seeds || []).find((x) => x.id === seedId);
@@ -456,13 +477,13 @@ function registerFf7Ipc() {
     }
     const image = new PatchedImage(p, patch);
     const info = inspectDisc(p);
-    currentGame = { path: p, gameId: 'ff7', seedId: seedId || null, image };
+    currentGame = { path: p, gameId: gid, seedId: seedId || null, image };
     const token = crypto.randomBytes(4).toString('hex');
     const needsCue = /^mednafen_psx/.test(settings.core);
     if (needsCue) currentGame.zip = await prepareDiscZip(p, path.join(app.getPath('userData'), 'crc-cache.json'), image);
     // Same file name and save name for every disc, so the memory card carries
     // over when you change discs.
-    const saveName = seedId || 'ff7-vanilla';
+    const saveName = seedId || `${gid}-vanilla`;
     return {
       gameUrl: needsCue ? `app://media/gamezip/${token}/game.zip` : `app://media/game/${token}/${sanitize(saveName)}.bin`,
       biosUrl: `app://media/bios/${token}/scph5501.bin`,
@@ -477,25 +498,25 @@ function registerFf7Ipc() {
   });
 
   // Write full patched .bin + .cue files for other emulators.
-  ipcMain.handle('ff7:export', async (e, seedId) => {
+  ipcMain.handle(`${gid}:export`, async (e, seedId) => {
     const s = (settings.seeds || []).find((x) => x.id === seedId);
     if (!s) throw new Error('Seed not found.');
     const r = await dialog.showOpenDialog(win, { title: 'Choose a folder for the patched discs', properties: ['openDirectory', 'createDirectory'] });
     if (r.canceled) return null;
     const outDir = r.filePaths[0];
-    const discs = ff7Discs();
+    const discs = gameDiscs();
     const written = [];
-    for (let n = 1; n <= 3; n++) {
+    for (let n = 1; n <= G.count; n++) {
       const patch = path.join(s.dir, `disc${n}.prhp`);
       if (!discs[n - 1] || !fs.existsSync(patch)) continue;
-      const base = `FF7-${sanitize(s.seed)}-Disc${n}`;
+      const base = `${gid.toUpperCase()}-${sanitize(s.seed)}-Disc${n}`;
       e.sender.send('rando:log', `Writing ${base}.bin…`);
       await new PatchedImage(discs[n - 1], patch).exportTo(path.join(outDir, `${base}.bin`));
       fs.writeFileSync(path.join(outDir, `${base}.cue`), `FILE "${base}.bin" BINARY\r\n  TRACK 01 MODE2/2352\r\n    INDEX 01 00:00:00\r\n`);
       written.push(path.join(outDir, `${base}.bin`));
     }
     if (written.length > 1) {
-      const m3u = path.join(outDir, `FF7-${sanitize(s.seed)}.m3u`);
+      const m3u = path.join(outDir, `${gid.toUpperCase()}-${sanitize(s.seed)}.m3u`);
       fs.writeFileSync(m3u, written.map((w) => path.basename(w, '.bin') + '.cue').join('\r\n') + '\r\n');
     }
     if (written[0]) shell.showItemInFolder(written[0]);

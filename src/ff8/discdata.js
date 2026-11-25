@@ -98,6 +98,29 @@ function magicNames(kern) {
   return null;
 }
 
+// Item names (item ids 1-198), read from the kernel: battle items (section 7, 24-byte entries) then the others
+// (section 8, 4-byte entries), each starting with the name's offset in a text section. The text section is found
+// by content: it's the one where the first battle item reads "Potion" and the others include "Tent".
+function itemNames(kern) {
+  const list = (secIdx, stride) => {
+    const d = kern.sec(secIdx);
+    return Array.from({ length: Math.floor(d.length / stride) }, (_, i) => d.readUInt16LE(stride * i));
+  };
+  const find = (offs, ok) => {
+    for (let t = 28; t < kern.count; t++) {
+      const ts = kern.sec(t);
+      if (!offs.every((o) => o === 0xffff || o < ts.length)) continue;
+      const names = offs.map((o) => (o === 0xffff ? '' : decode(ts, o, o + 32)));
+      if (ok(names)) return names;
+    }
+    return null;
+  };
+  const battle = find(list(7, 24), (n) => n[0] === 'Potion');
+  const other = find(list(8, 4), (n) => n.includes('Tent') && n.includes('Cottage'));
+  if (!battle || !other) return null;
+  return ['', ...battle, ...other];
+}
+
 function readEnemy(disc, e) {
   const raw = disc.readExtent(e.lba, e.offsets[7]);
   const info = raw.subarray(e.offsets[6], e.offsets[7]);
@@ -118,9 +141,11 @@ function load(discPath) {
     const img = findImg(disc);
     const { enemies, kernel } = scan(disc, img);
     const list = enemies.map((e) => ({ ...e, ...readEnemy(disc, e) }));
-    let names = null;
-    if (kernel) { try { names = magicNames(readKernel(disc, kernel)); } catch (_) { names = null; } }
-    return { img, enemies: list, magicNames: names };
+    let names = null, items = null;
+    if (kernel) {
+      try { const kern = readKernel(disc, kernel); names = magicNames(kern); items = itemNames(kern); } catch (_) { /* names are optional */ }
+    }
+    return { img, enemies: list, magicNames: names, itemNames: items };
   } finally {
     disc.close();
   }

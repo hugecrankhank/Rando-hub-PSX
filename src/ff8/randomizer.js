@@ -109,16 +109,16 @@ function matchEnemies(base, other) {
 
 // ------------------------------------------------------------------ spoiler
 
-function spoilerText({ seed, opts, enemies, plans, magicNames, notes }) {
+function spoilerText({ seed, opts, enemies, plans, magicNames, itemNames, notes }) {
   const L = [];
   const mag = (id) => (id >= 1 && id <= dd.MAGIC_MAX ? (magicNames && magicNames[id]) || `Magic #${id}` : id > dd.MAGIC_MAX ? `Guardian Force #${id}` : '');
-  const item = ([id, q]) => (id ? `Item #${id}${q > 1 ? ` x${q}` : ''}` : '');
+  const item = ([id, q]) => (id ? `${(itemNames && itemNames[id]) || `Item #${id}`}${q > 1 ? ` x${q}` : ''}` : '');
   L.push('FINAL FANTASY VIII — PSX Rando Hub seed', `Seed: ${seed}`, `Generator version: ${VERSION}`, '');
   L.push('Options:');
   for (const [k, v] of Object.entries(opts)) L.push(`  ${k}: ${v}`);
   L.push('');
   if (notes.length) { L.push('Notes:'); notes.forEach((n) => L.push('  ' + n)); L.push(''); }
-  L.push('Item numbers follow the game\'s item list (1 = Potion). Draws are listed by enemy level band: low / mid / high.', '');
+  L.push('Draws, mugs and drops are listed by enemy level band: low / mid / high.' + (itemNames ? '' : ' Item numbers follow the game\'s item list (1 = Potion).'), '');
   L.push('== Enemies ==');
   const seen = new Set();
   enemies.forEach((e, i) => {
@@ -215,7 +215,7 @@ async function generate({ discs, outDir, seed, options, spoiler = true }, onLine
     }
   }
 
-  const text = spoilerText({ seed, opts, enemies: d1.enemies, plans, magicNames: d1.magicNames, notes });
+  const text = spoilerText({ seed, opts, enemies: d1.enemies, plans, magicNames: d1.magicNames, itemNames: d1.itemNames, notes });
   if (spoiler) fs.writeFileSync(path.join(outDir, 'spoiler.txt'), text);
   fs.writeFileSync(path.join(outDir, 'seed.json'), JSON.stringify({ version: VERSION, seed, options: opts, notes, discs: discs.map((x) => x || null) }, null, 2));
   return { discFiles, options: opts, notes, spoiler: spoiler ? text : '' };
