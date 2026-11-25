@@ -5,7 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { buildDisc, MAGIC, ENEMIES } = require('./fake-ff8');
+const { buildDisc, MAGIC, ENEMIES, ABILITY, GF_LISTS, GF_UNLOCK } = require('./fake-ff8');
 const { PatchedImage, loadPatch } = require('../src/discpatch');
 const { verifySector } = require('../src/cdsector');
 const dd = require('../src/ff8/discdata');
@@ -68,6 +68,44 @@ test('same seed + options = same patch; another seed differs; vanilla changes no
   assert.ok(!fs.readFileSync(a.discFiles[0]).equals(fs.readFileSync(c.discFiles[0])));
   const v = await ff8.generate({ discs: [discs[0]], outDir: path.join(tmp, 'v'), seed: 'X', options: { draws: 'vanilla', items: 'vanilla', cards: 'vanilla' } });
   assert.strictEqual(loadPatch(v.discFiles[0]).sectors.size, 0);
+});
+
+test('GF abilities: lists read; balanced keeps basic commands, moves the rest, no repeats, rest of kernel untouched', async () => {
+  const d = dd.load(discs[0]);
+  assert.deepStrictEqual(d.gfs, GF_LISTS);
+  assert.deepStrictEqual(d.gfUnlock, GF_UNLOCK);
+  assert.strictEqual(d.abilityNames[97], 'T Mag-RF');
+  assert.strictEqual(d.abilityNames[1], ABILITY[1]);
+  assert.ok(ff8.inspect(discs[0]).gfOk);
+  for (const mode of ['balanced', 'chaos']) {
+    const res = await ff8.generate({ discs, outDir: path.join(tmp, `gf-${mode}`), seed: 'GF', options: { draws: 'vanilla', items: 'vanilla', cards: 'vanilla', gfAbilities: mode } });
+    for (let i = 0; i < 4; i++) {
+      const exported = path.join(tmp, `gf-${mode}-${i}.bin`);
+      await new PatchedImage(discs[i], res.discFiles[i]).exportTo(exported);
+      const g = dd.load(exported);
+      const v = dd.load(discs[i]);
+      assert.deepStrictEqual(bag(g.gfLists.flat()), bag(GF_LISTS.flat()), 'same abilities overall');
+      assert.ok(g.gfLists.some((l, k) => JSON.stringify(l) !== JSON.stringify(GF_LISTS[k])), 'something moved');
+      g.gfLists.forEach((l, k) => {
+        const real = l.filter(Boolean);
+        assert.strictEqual(new Set(real).size, real.length, 'no GF learns an ability twice');
+        l.forEach((a, j) => { if (GF_LISTS[k][j] === 0) assert.strictEqual(a, 0, 'empty slots stay empty'); });
+        assert.strictEqual(l[4], GF_LISTS[k][4], 'a slot another slot waits on keeps its ability');
+        assert.strictEqual(l[5], GF_LISTS[k][5], 'a slot that waits on another keeps its ability');
+        assert.deepStrictEqual(g.gfUnlock[k], GF_UNLOCK[k], 'unlock rules untouched');
+        if (mode === 'balanced') l.forEach((a, j) => { if (GF_LISTS[k][j] >= 20 && GF_LISTS[k][j] <= 23) assert.strictEqual(a, GF_LISTS[k][j]); });
+      });
+      // Only the ability ids changed: the kernel matches vanilla everywhere else, enemies untouched.
+      const a = g.kernel.data, b = v.kernel.data;
+      const ids = new Set();
+      for (let k = 0; k < 16; k++) for (let j = 0; j < 21; j++) { const o = v.kernel.offs[2] + k * 132 + 0x1c + 4 * j + 2; ids.add(o); ids.add(o + 1); }
+      for (let x = 0; x < b.length; x++) if (a[x] !== b[x]) assert.ok(ids.has(x), `kernel byte ${x} changed`);
+      assert.deepStrictEqual(g.enemies.map((e) => e.raw.toString('hex')), v.enemies.map((e) => e.raw.toString('hex')));
+      for (const s of loadPatch(res.discFiles[i]).sectors.values()) assert.ok(verifySector(Buffer.from(s)));
+    }
+    const sp = fs.readFileSync(path.join(tmp, `gf-${mode}`, 'spoiler.txt'), 'utf8');
+    assert.ok(sp.includes('Guardian Force abilities') && sp.includes('Quezacotl: '));
+  }
 });
 
 test('random draws only use magic that exists in the game\'s draw lists', async () => {

@@ -84,11 +84,12 @@ FF8 also uses the hub's **own seed generator**. You need your four USA discs as 
 | Magic you can draw from enemies | Vanilla, shuffled within each enemy level band (fair), shuffled across every enemy, or random from the game's draw lists |
 | Items you mug and enemies drop | Vanilla, shuffled within each level band, shuffled across every enemy, or random |
 | Cards enemies give | Vanilla or shuffled |
+| Abilities each GF can learn | Vanilla, shuffled (Magic, GF, Draw and Item stay put) or shuffled everything. Upgrade chains like SumMag+10% → +20% and Card → Card Mod stay together on their GF |
 | EXP / AP | ×1 to ×4 |
 
 Guardian Forces you draw from bosses always stay where they are, so every GF can still be had. Presets: Casual, Standard, Wild, Chaos and Draws only. Every seed has a spoiler log with the real magic and item names, read from your disc.
 
-**How it works.** FF8 keeps its data in one big file per disc (FF8DISC*.IMG), uncompressed. The generator finds all 143 enemy files in it, plans the seed from Disc 1 and writes the same changes to all four discs, each in place and the same size, so nothing ever runs out of room. **Tracker:** the 16 GFs, key moments and bosses, click to mark; reading them from game memory is next.
+**How it works.** FF8 keeps its data in one big file per disc (FF8DISC*.IMG), uncompressed. The generator finds all 143 enemy files in it, plans the seed from Disc 1 and writes the same changes to all four discs, each in place and the same size, so nothing ever runs out of room. GF abilities are changed in kernel.bin, also in place. **Tracker:** the 16 GFs, key moments and bosses, click to mark; reading them from game memory is next.
 
 ## How auto-tracking works
 

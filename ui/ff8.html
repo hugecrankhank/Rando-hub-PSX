@@ -122,12 +122,19 @@
               <option value="shuffle">Shuffled among enemies</option>
             </select>
           </label>
+          <label>Abilities each Guardian Force can learn
+            <select data-opt="gfAbilities">
+              <option value="vanilla">Vanilla</option>
+              <option value="balanced">Shuffled (Magic, GF, Draw and Item stay put)</option>
+              <option value="chaos">Shuffled, everything</option>
+            </select>
+          </label>
           <div class="row three">
             <label>EXP <select data-opt="expMult"></select></label>
             <label>AP <select data-opt="apMult"></select></label>
             <label></label>
           </div>
-          <p class="fine">Guardian Forces you draw from bosses always stay where they are.</p>
+          <p class="fine">Guardian Forces you draw from bosses always stay where they are. Upgrade chains (SumMag+10% → +20%, Card → Card Mod…) stay together on their GF.</p>
         </details>
         <label class="toggle"><input type="checkbox" id="spoilerOn" checked> Write a spoiler log</label>
         <button class="btn primary wide" id="generateBtn" type="submit">Generate seed</button>
