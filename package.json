@@ -7,7 +7,7 @@
   "scripts": {
     "setup": "node scripts/setup.js",
     "start": "electron .",
-    "test": "node test/disc.test.js && node test/memory.test.js && node test/map.test.js && node test/ff7.test.js && node test/ff7-track.test.js && node test/license.test.js && node test/ff8.test.js",
+    "test": "node test/disc.test.js && node test/memory.test.js && node test/map.test.js && node test/ff7.test.js && node test/ff7-track.test.js && node test/license.test.js && node test/ff8.test.js && node test/ff8-track.test.js",
     "dist": "electron-builder --win nsis portable"
   },
   "author": "Robert",
