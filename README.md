@@ -89,7 +89,15 @@ FF8 also uses the hub's **own seed generator**. You need your four USA discs as 
 
 Guardian Forces you draw from bosses always stay where they are, so every GF can still be had. Presets: Casual, Standard, Wild, Chaos and Draws only. Every seed has a spoiler log with the real magic and item names, read from your disc.
 
-**How it works.** FF8 keeps its data in one big file per disc (FF8DISC*.IMG), uncompressed. The generator finds all 143 enemy files in it, plans the seed from Disc 1 and writes the same changes to all four discs, each in place and the same size, so nothing ever runs out of room. GF abilities are changed in kernel.bin, also in place. **Tracker:** the 16 GFs, key moments and bosses, click to mark; reading them from game memory is next.
+**How it works.** FF8 keeps its data in one big file per disc (FF8DISC*.IMG), uncompressed. The generator finds all 143 enemy files in it, plans the seed from Disc 1 and writes the same changes to all four discs, each in place and the same size, so nothing ever runs out of room. GF abilities are changed in kernel.bin, also in place.
+
+**Tracker:** reads your save data from game memory once you start a New Game or load a save (read-only, it never changes the game):
+
+- the 16 GFs light up when you get them;
+- the party: who has joined, their level and who's in the active party;
+- gil, play time and your items.
+
+Key moments, bosses and Triple Triad cards are click to mark. There's also a world map you can drop pins on. The GF and character faces, the cards and the map are drawn from your own Disc 1 when you pick it in Settings; nothing is shipped with the app.
 
 ## How auto-tracking works
 

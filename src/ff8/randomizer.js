@@ -39,7 +39,7 @@ const inspect = (discPath) => {
   const v = dd.validate(d);
   const problems = [...v.problems];
   if (!d.gfs) problems.push('Couldn’t confirm the Guardian Forces’ ability lists, so GF ability shuffle is off.');
-  return { exeName: info.exeName, enemies: d.enemies.length, ok: v.ok, gfOk: !!d.gfs, problems, magicNames: d.magicNames };
+  return { exeName: info.exeName, enemies: d.enemies.length, ok: v.ok, gfOk: !!d.gfs, problems, magicNames: d.magicNames, itemNames: d.itemNames };
 };
 const features = (r) => ({ draws: r.ok, items: r.ok, cards: r.ok, mults: r.ok, gfAbilities: !!r.gfOk });
 

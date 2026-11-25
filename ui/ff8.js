@@ -1,7 +1,7 @@
 /* global hub */
 'use strict';
 
-// Final Fantasy VIII page: emulator, our own seed generator and the tracker (click to mark for now).
+// Final Fantasy VIII page: emulator, our own seed generator and the tracker (auto from game memory + click to mark).
 const GAME_ID = 'ff8';
 const DISCS = 4;
 const api = hub.ff8;
@@ -12,14 +12,19 @@ const state = {
   settings: null, def: null, names: null, seeds: [], presets: null,
   current: null,           // { seedId, label, disc }
   emu: 'idle',
-  auto: new Set(),         // (auto-tracking: not yet for FF8)
+  auto: new Set(),         // tile names seen in RAM
   marked: new Set(),
+  cards: new Set(),        // card numbers marked
+  pins: [],                // world map pins [{x, y}] (0..1)
+  art: null,               // pictures from Disc 1
   bosses: new Set(),
   timer: { running: false, start: 0, acc: 0 },
   live: null,
   saveBase: -1,
   discChecks: [],
 };
+const locator = new PsxMemory.RamLocator();
+let polls = 0;
 
 // ------------------------------------------------------------------ utils
 function toast(msg, isError = false, ms = 4200) {
@@ -70,10 +75,11 @@ function buildTracker() {
         class: 'tile' + (t.key ? ' key' : ''), 'data-id': t.name, title: t.name,
         onclick: () => { state.marked.has(t.name) ? state.marked.delete(t.name) : state.marked.add(t.name); renderTracker(); saveTracker(); },
         oncontextmenu: (e) => { e.preventDefault(); state.marked.delete(t.name); state.auto.delete(t.name); renderTracker(); saveTracker(); },
-      }, el('div', { class: 'abbr' }, t.short), el('div', { class: 'name' }, t.name)));
+      }, el('div', { class: 'art' }), el('div', { class: 'abbr' }, t.short), el('div', { class: 'name' }, t.name)));
     }
     root.append(el('div', { class: 'group' }, el('h4', {}, g.name), grid));
   }
+  buildRoster(); buildCards(); buildMap();
   const bl = $('bossList');
   bl.innerHTML = '';
   const bosses = [...state.def.tracker.bosses, ...state.def.tracker.optionalBosses.map((b) => `${b} (optional)`)];
@@ -89,6 +95,110 @@ function buildTracker() {
 
 const owned = (t) => state.auto.has(t.name) || state.marked.has(t.name);
 
+// ------------------------------------------------------------------ pictures (from the player's Disc 1)
+// Face sheets: 8 x 2 faces of 32 x 48. Card sheets: 4 x 3 cards of 64 x 64, 11 cards each.
+function sprite(node, url, col, row, cw, ch, sheetW, sheetH, boxW) {
+  if (!url) { node.style.backgroundImage = ''; return; }
+  const k = boxW / cw;
+  node.style.backgroundImage = `url(${url})`;
+  node.style.backgroundSize = `${sheetW * k}px ${sheetH * k}px`;
+  node.style.backgroundPosition = `${-col * cw * k}px ${-row * ch * k}px`;
+  node.style.width = `${boxW}px`; node.style.height = `${ch * k}px`;
+  node.style.left = '50%'; node.style.marginLeft = `${-boxW / 2}px`; node.style.right = 'auto';
+}
+function applyArt() {
+  const a = state.art || {};
+  const gfs = state.def.tracker.groups[0].items;
+  gfs.forEach((t, g) => {
+    const tile = document.querySelector(`.tile[data-id="${CSS.escape(t.name)}"]`);
+    if (!tile) return;
+    tile.classList.toggle('has-art', !!a.gfs);
+    sprite(tile.querySelector('.art'), a.gfs, g % 8, Math.floor(g / 8), 32, 48, 256, 96, 30);
+  });
+  document.querySelectorAll('#roster .who').forEach((w, i) => sprite(w.querySelector('.face'), a.faces, i % 8, 0, 32, 48, 256, 96, 46));
+  document.querySelectorAll('#cardGrid .card').forEach((c, n) => {
+    const sheet = a.cards && a.cards[Math.floor(n / 11)];
+    const k = n % 11;
+    if (!sheet) { c.style.backgroundImage = ''; c.textContent = state.def.tracker.cards[n]; return; }
+    c.textContent = '';
+    c.style.backgroundImage = `url(${sheet})`;
+    c.style.backgroundSize = '400% 300%';
+    c.style.backgroundPosition = `${((k % 4) / 3) * 100}% ${(Math.floor(k / 4) / 2) * 100}%`;
+  });
+  const map = $('worldMap');
+  if (a.map) {
+    map.innerHTML = '';
+    const img = el('img', { src: a.map, alt: 'World map', draggable: 'false' });
+    img.addEventListener('click', (e) => {
+      const r = img.getBoundingClientRect();
+      state.pins.push({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
+      renderPins(); saveTracker();
+    });
+    map.append(img);
+    renderPins();
+  }
+}
+async function loadArt() {
+  try { state.art = await api.art(); } catch (_) { state.art = null; }
+  applyArt();
+}
+
+function buildRoster() {
+  const r = $('roster');
+  r.innerHTML = '';
+  state.def.tracker.roster.forEach((name) => r.append(el('div', { class: 'who', title: name }, el('div', { class: 'face' }), el('div', { class: 'lv' }), el('div', { class: 'label' }, name))));
+}
+function renderRoster() {
+  const live = state.live;
+  document.querySelectorAll('#roster .who').forEach((w, i) => {
+    const c = live && live.chars[i];
+    w.classList.toggle('joined', !live || !!(c && c.joined));
+    w.classList.toggle('in-party', !!(live && live.party.includes(i)));
+    w.querySelector('.lv').textContent = c && c.joined ? `Lv ${c.level}` : '';
+  });
+}
+
+function buildCards() {
+  const g = $('cardGrid');
+  g.innerHTML = '';
+  state.def.tracker.cards.forEach((name, n) => g.append(el('div', {
+    class: 'card', title: name,
+    onclick: () => { state.cards.has(n) ? state.cards.delete(n) : state.cards.add(n); renderCards(); saveTracker(); },
+    oncontextmenu: (e) => { e.preventDefault(); state.cards.delete(n); renderCards(); saveTracker(); },
+  })));
+}
+function renderCards() {
+  document.querySelectorAll('#cardGrid .card').forEach((c, n) => c.classList.toggle('got', state.cards.has(n)));
+  $('cardCount').textContent = state.cards.size;
+}
+
+function buildMap() { /* filled in by applyArt once the pictures load */ }
+function renderPins() {
+  const map = $('worldMap');
+  map.querySelectorAll('.pin').forEach((p) => p.remove());
+  state.pins.forEach((p, i) => map.append(el('div', {
+    class: 'pin', style: `left:${p.x * 100}%;top:${p.y * 100}%`, title: 'Right-click to remove',
+    oncontextmenu: (e) => { e.preventDefault(); state.pins.splice(i, 1); renderPins(); saveTracker(); },
+  })));
+}
+
+function renderLive() {
+  const live = state.live, line = $('liveLine');
+  renderRoster();
+  if (!live) { line.hidden = true; return; }
+  line.hidden = false;
+  const h = Math.floor(live.seconds / 3600), m = Math.floor(live.seconds / 60) % 60;
+  line.innerHTML = '';
+  line.append(el('span', {}, 'Gil ', el('b', {}, live.gil.toLocaleString())), el('span', {}, 'Play time ', el('b', {}, `${h}:${String(m).padStart(2, '0')}`)));
+  const names = (state.names && state.names.items) || [];
+  const ul = $('itemList');
+  ul.innerHTML = '';
+  const list = [...live.items].sort((a, b) => a[0] - b[0]);
+  for (const [id, q] of list) ul.append(el('li', {}, el('span', {}, names[id] || `Item ${id}`), el('span', {}, `×${q}`)));
+  if (!list.length) ul.append(el('li', { class: 'empty-note' }, 'No items yet.'));
+  $('itemCount').textContent = list.length ? `(${list.length})` : '';
+}
+
 function renderTracker() {
   for (const t of allTiles()) {
     const tile = document.querySelector(`.tile[data-id="${CSS.escape(t.name)}"]`);
@@ -99,6 +209,7 @@ function renderTracker() {
   $('gfCount').textContent = state.def.tracker.groups[0].items.filter(owned).length;
   $('keyCount').textContent = allTiles().filter((t) => t.key && owned(t)).length;
   $('bossCount').textContent = state.def.tracker.bosses.filter((b) => state.bosses.has(b)).length;
+  renderCards(); renderRoster();
   document.querySelectorAll('#bossList label').forEach((l) => { l.querySelector('input').checked = state.bosses.has(l.textContent); });
 }
 
@@ -106,28 +217,81 @@ function saveTracker() {
   try {
     localStorage.setItem(trackerKey(), JSON.stringify({
       auto: [...state.auto], marked: [...state.marked], bosses: [...state.bosses], timer: { acc: currentElapsed() },
+      cards: [...state.cards], pins: state.pins,
     }));
   } catch (_) { /* ignore */ }
 }
 function loadTracker() {
-  state.auto = new Set(); state.marked = new Set(); state.bosses = new Set();
+  state.auto = new Set(); state.marked = new Set(); state.bosses = new Set(); state.cards = new Set(); state.pins = [];
   state.timer = { running: false, start: 0, acc: 0 };
   try {
     const s = JSON.parse(localStorage.getItem(trackerKey()) || 'null');
     if (s) {
       state.auto = new Set(s.auto); state.marked = new Set(s.marked); state.bosses = new Set(s.bosses);
+      state.cards = new Set(s.cards || []); state.pins = s.pins || [];
       state.timer.acc = (s.timer && s.timer.acc) || 0;
     }
   } catch (_) { /* ignore */ }
-  renderTracker(); renderTimer();
+  renderTracker(); renderTimer(); renderPins();
 }
 
 $('trackerReset').addEventListener('click', () => {
   if (!confirm('Clear the tracker for this game?')) return;
-  state.auto.clear(); state.marked.clear(); state.bosses.clear();
-  renderTracker(); saveTracker();
+  state.auto.clear(); state.marked.clear(); state.bosses.clear(); state.cards.clear(); state.pins = [];
+  renderTracker(); renderPins(); saveTracker();
 });
-function updateTrackPill() { setPill('trackStatus', 'off', 'Click-to-mark tracker'); }
+$('autoTrack').addEventListener('change', async (e) => {
+  state.settings = await hub.setSettings({ autoTrack: e.target.checked });
+  updateTrackPill();
+});
+
+// ------------------------------------------------------------------ memory polling (read-only)
+function updateTrackPill(st) {
+  if (state.settings && state.settings.autoTrack === false) return setPill('trackStatus', 'off', 'Manual tracking');
+  if (state.emu !== 'running') return setPill('trackStatus', 'off', 'Tracking idle');
+  if (!locator.ready) return setPill('trackStatus', 'searching', st === 'searching' ? 'Finding game RAM…' : 'Waiting for game…');
+  if (state.saveBase < 0) return setPill('trackStatus', 'searching', 'Waiting for New Game / Continue…');
+  return setPill('trackStatus', 'live', 'Auto-tracking live');
+}
+function emuHook() {
+  try { return $('emuFrame').contentWindow.__psxHook; } catch (_) { return null; }
+}
+function pollMemory() {
+  if (state.emu !== 'running' || (state.settings && state.settings.autoTrack === false)) return;
+  if (!locator.ready) {
+    let st = 'waiting';
+    const t0 = performance.now();
+    do { st = locator.step(emuHook()); } while (st === 'searching' && performance.now() - t0 < 12);
+    updateTrackPill(st);
+    if (!locator.ready) return;
+  }
+  polls++;
+  if (polls % 60 === 0 && !locator.stillValid()) { locator.invalidate(); state.saveBase = -1; updateTrackPill('searching'); return; }
+  if (state.saveBase < 0) {
+    if (polls % 4 !== 0) return; // full RAM scan: only every couple of seconds
+    const ram = locator.read(0, PsxMemory.PSX_RAM_SIZE);
+    if (!ram) return;
+    state.saveBase = FF8Track.findSave(ram, -1);
+    updateTrackPill();
+    if (state.saveBase < 0) return;
+    toast('Auto-tracking connected to your save data.');
+  }
+  const block = locator.read(state.saveBase, FF8Track.SAVE_SIZE);
+  if (!block || !FF8Track.looksLikeSave(block, 0)) { state.saveBase = -1; state.live = null; updateTrackPill(); renderLive(); return; }
+  state.live = FF8Track.readSave(block);
+  let changed = false;
+  const gfs = state.def.tracker.groups[0].items;
+  state.live.gfs.forEach((g, i) => {
+    const t = gfs[i];
+    if (!t || !g.owned || state.auto.has(t.name)) return;
+    state.auto.add(t.name); changed = true;
+    const tile = document.querySelector(`.tile[data-id="${CSS.escape(t.name)}"]`);
+    if (tile) { tile.classList.remove('flash'); void tile.offsetWidth; tile.classList.add('flash'); }
+  });
+  if (changed) { saveTracker(); renderTracker(); }
+  renderLive();
+}
+setInterval(pollMemory, 500);
 
 // ------------------------------------------------------------------ timer
 function currentElapsed() { return state.timer.acc + (state.timer.running ? performance.now() - state.timer.start : 0); }
@@ -166,6 +330,8 @@ async function play(seedId, label, disc = 1) {
     const info = await api.load(seedId, disc);
     state.current = { seedId, label, disc };
     if (!sameRun) loadTracker();
+    locator.reset(info.probes);
+    state.saveBase = -1; state.live = null; renderLive();
     const hz = state.lastDisplayHz || await displayHz;
     const q = new URLSearchParams({
       core: info.core, game: info.gameUrl, bios: info.biosUrl, name: info.saveName, data: info.dataPath,
@@ -230,6 +396,7 @@ function stop() {
   $('emptyState').hidden = false;
   state.emu = 'idle';
   state.current = null;
+  state.saveBase = -1; state.live = null; renderLive();
   setPill('emuStatus', 'idle', 'Emulator idle');
   setPill('displayFps', 'off', 'Display — fps');
   updateTrackPill();
@@ -443,6 +610,7 @@ document.querySelectorAll('[data-disc-setting]').forEach((box) => {
     discs[n - 1] = resolved;
     state.settings = await hub.setSettings({ games: { ff8: { ...state.settings.games.ff8, discs } } });
     renderSettings();
+    if (n === 1) loadArt();
   });
 });
 $('coreSelect').addEventListener('change', async (e) => {
@@ -458,9 +626,12 @@ window.addEventListener('beforeunload', () => saveTracker());
   if (!state.settings.games.ff8) state.settings.games.ff8 = { discs: ['', '', '', ''] };
   state.def = await hub.gameDef(GAME_ID);
   state.presets = await api.presets();
+  try { const n = await api.names(); state.names = (n && n.names) || n; } catch (_) { /* optional */ }
   buildTracker();
   buildSeedForm();
   loadTracker();
+  $('autoTrack').checked = state.settings.autoTrack !== false;
+  loadArt();
   await renderSettings();
   await loadSeeds();
   renderDiscBtns();

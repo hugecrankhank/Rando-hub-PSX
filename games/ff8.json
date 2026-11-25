@@ -46,6 +46,19 @@
       "Fujin & Raijin", "Cerberus", "BGH251F2", "Oilboyle", "NORG", "Raijin & Fujin (Lunatic)", "Seifer (Garden)",
       "Edea (Garden)", "Abadon", "Propagators", "Mobile Type 8", "Seifer (Lunatic)", "Adel", "Ultimecia"
     ],
-    "optionalBosses": ["Diablos", "Odin", "Tonberry King", "Cactuar", "Bahamut", "Ultima Weapon", "Omega Weapon"]
+    "optionalBosses": ["Diablos", "Odin", "Tonberry King", "Cactuar", "Bahamut", "Ultima Weapon", "Omega Weapon"],
+    "roster": ["Squall", "Zell", "Irvine", "Quistis", "Rinoa", "Selphie", "Seifer", "Edea"],
+    "cards": [
+      "Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatrice",
+      "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis",
+      "Forbidden", "Armadodo", "Tri-Face", "Fastitocalon", "Snow Lion", "Ochu", "SAM08G", "Death Claw", "Cactuar", "Tonberry", "Abyss Worm",
+      "Turtapod", "Vysage", "T-Rexaur", "Bomb", "Blitz", "Wendigo", "Torama", "Imp", "Blue Dragon", "Adamantoise", "Hexadragon",
+      "Iron Giant", "Behemoth", "Chimera", "PuPu", "Elastoid", "GIM47N", "Malboro", "Ruby Dragon", "Elnoyle", "Tonberry King", "Biggs & Wedge",
+      "Fujin & Raijin", "Elvoret", "X-ATM092", "Granaldo", "Gerogero", "Iguion", "Abadon", "Trauma", "Oilboyle", "Shumi Tribe", "Krysta",
+      "Propagator", "Jumbo Cactuar", "Tri-Point", "Gargantua", "Mobile Type 8", "Sphinxara", "Tiamat", "BGH251F2", "Red Giant", "Catoblepas", "Ultima Weapon",
+      "Chubby Chocobo", "Angelo", "Gilgamesh", "MiniMog", "Chicobo", "Quezacotl", "Shiva", "Ifrit", "Siren", "Sacred", "Minotaur",
+      "Carbuncle", "Diablos", "Leviathan", "Odin", "Pandemona", "Cerberus", "Alexander", "Phoenix", "Bahamut", "Doomtrain", "Eden",
+      "Ward", "Kiros", "Laguna", "Selphie", "Quistis", "Irvine", "Zell", "Rinoa", "Edea", "Seifer", "Squall"
+    ]
   }
 }

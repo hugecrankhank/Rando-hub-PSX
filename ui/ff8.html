@@ -75,15 +75,35 @@
         <div><span id="keyCount">0</span><small id="keyTotal">/0 key</small></div>
         <div><span id="bossCount">0</span><small id="bossTotal">/0 bosses</small></div>
       </div>
+      <div class="ff8-live" id="liveLine" hidden></div>
+      <div class="group">
+        <h4>Party</h4>
+        <div class="roster" id="roster"></div>
+      </div>
       <div id="trackerGroups"></div>
+      <details class="ff8-box" id="cardsBox">
+        <summary>Triple Triad cards <span id="cardCount">0</span>/110</summary>
+        <div class="cards" id="cardGrid"></div>
+        <p class="fine">Click a card when you get it; right-click to clear.</p>
+      </details>
+      <details class="ff8-box" id="itemsBox">
+        <summary>Items <span id="itemCount"></span></summary>
+        <ul class="items" id="itemList"><li class="empty-note">Shown once auto-tracking is live.</li></ul>
+      </details>
+      <details class="ff8-box" id="mapBox">
+        <summary>World map</summary>
+        <div class="worldmap" id="worldMap"><p class="fine">Pick Disc 1 in Settings to see the map.</p></div>
+        <p class="fine">Click the map to drop a pin (where you've been, what's left); right-click a pin to remove it.</p>
+      </details>
       <details class="bosses">
         <summary>Bosses</summary>
         <div id="bossList"></div>
       </details>
       <div class="tracker-foot">
+        <label class="toggle"><input type="checkbox" id="autoTrack" checked> Auto-track from game memory</label>
         <button class="btn small ghost" id="trackerReset">Clear tracker</button>
       </div>
-      <p class="fine">Click a tile when you get it; right-click to clear. Automatic tracking from game memory is coming next for FF8.</p>
+      <p class="fine">GFs, the party and items track themselves from game memory once you start a New Game or load a save. Click a tile to mark it yourself; right-click to clear. Pictures come from your own Disc 1.</p>
     </div>
 
     <!-- SEEDS -->
@@ -205,6 +225,7 @@
 
 <script src="license-ui.js"></script>
 <script src="memory.js"></script>
+<script src="ff8-track.js"></script>
 <script src="ff8.js"></script>
 </body>
 </html>

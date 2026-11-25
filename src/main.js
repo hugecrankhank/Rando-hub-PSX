@@ -12,6 +12,7 @@ const { loadMapModel } = require('./sotn-map');
 const { PatchedImage } = require('./discpatch');
 const ff7 = require('./ff7/randomizer');
 const ff8 = require('./ff8/randomizer');
+const ff8Art = require('./ff8/art');
 const { createLicense } = require('./license');
 
 const ROOT = path.join(__dirname, '..');
@@ -384,7 +385,8 @@ const DISC_GAMES = {
   },
   ff8: {
     id: 'ff8', title: 'Final Fantasy VIII', count: 4, mod: ff8,
-    check: (p) => { const r = ff8.inspect(p); return { features: ff8.features(r), problems: r.problems, names: { magic: r.magicNames || [] } }; },
+    check: (p) => { const r = ff8.inspect(p); return { features: ff8.features(r), problems: r.problems, names: { magic: r.magicNames || [], items: r.itemNames || [] } }; },
+    art: (p) => ff8Art.load(p),
   },
 };
 
@@ -399,6 +401,19 @@ function registerDiscGameIpc(G) {
     return Array.from({ length: G.count }, (_, i) => d[i] || '');
   };
   const namesFile = () => path.join(app.getPath('userData'), `${gid}-names.json`);
+  // Pictures for the tracker, drawn from the player's Disc 1 (kept in memory only).
+  let artCache = null;
+  if (G.art) {
+    ipcMain.handle(`${gid}:art`, () => {
+      const p = gameDiscs()[0];
+      if (!p || !fs.existsSync(p)) return null;
+      if (artCache && artCache.disc === p) return artCache.art;
+      let art = null;
+      try { art = G.art(p); } catch (_) { art = null; }
+      artCache = { disc: p, art };
+      return art;
+    });
+  }
   // Check each picked disc; for Disc 1 also read the names the tracker uses
   // and which seed features its data supports.
   ipcMain.handle(`${gid}:checkDiscs`, () => {

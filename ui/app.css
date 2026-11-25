@@ -214,3 +214,30 @@ body.ff7 .crest { background: radial-gradient(circle, #5fe3b0 0 30%, transparent
 /* Final Fantasy VIII page: Garden blue */
 body.ff8 { --blood: #1d4f86; --blood-hi: #2c6db5; --gold: #c9d8ee; --gold-dim: #4d6487; --owned: #8fc1ff; }
 body.ff8 .crest { background: radial-gradient(circle, #9cc8ff 0 30%, transparent 32%), var(--bg2); }
+
+/* FF8 tracker: pictures from the player's disc */
+.tile.has-art { justify-content: flex-end; padding-bottom: 3px; }
+.tile .art { position: absolute; inset: 3px 3px 16px; background-repeat: no-repeat; background-position: center; image-rendering: auto; opacity: .35; filter: grayscale(1); }
+.tile.owned .art, .tile.marked .art { opacity: 1; filter: none; }
+.tile.has-art .abbr { display: none; }
+.tile.has-art .name { position: relative; text-shadow: 0 1px 2px #000; }
+.roster { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.roster .who { position: relative; border: 1px solid var(--line); background: var(--bg2); aspect-ratio: .8; overflow: hidden; opacity: .4; }
+.roster .who.joined { opacity: 1; }
+.roster .who.in-party { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim) inset; }
+.roster .face { position: absolute; inset: 0 0 16px; background-repeat: no-repeat; background-position: center; }
+.roster .label { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; padding: 1px 2px; background: #0009; white-space: nowrap; overflow: hidden; }
+.roster .lv { position: absolute; top: 2px; right: 3px; font: 600 11px var(--serif); color: var(--gold); text-shadow: 0 1px 2px #000; }
+.ff8-live { font-size: 12px; color: var(--muted); margin: -4px 0 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+.ff8-live b { color: var(--text); font-weight: 600; }
+.ff8-box { margin-top: 12px; border: 1px solid var(--line); background: var(--bg2); padding: 6px 8px; }
+.ff8-box summary { cursor: pointer; font: 12px var(--sans); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; margin-top: 8px; }
+.cards .card { aspect-ratio: 1; border: 1px solid var(--line); background-repeat: no-repeat; cursor: pointer; opacity: .3; filter: grayscale(1); font-size: 8px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.cards .card.got { opacity: 1; filter: none; border-color: var(--gold-dim); }
+.items { list-style: none; margin: 8px 0 0; padding: 0; columns: 2; font-size: 12px; }
+.items li { display: flex; justify-content: space-between; gap: 6px; break-inside: avoid; padding: 1px 0; }
+.items li span:last-child { color: var(--gold); }
+.worldmap { position: relative; margin-top: 8px; }
+.worldmap img { width: 100%; display: block; image-rendering: auto; cursor: crosshair; }
+.worldmap .pin { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--gold); border: 2px solid #000; cursor: pointer; }
