@@ -115,7 +115,7 @@ function applyArt() {
     tile.classList.toggle('has-art', !!a.gfs);
     sprite(tile.querySelector('.art'), a.gfs, g % 8, Math.floor(g / 8), 32, 48, 256, 96, 30);
   });
-  document.querySelectorAll('#roster .who').forEach((w, i) => sprite(w.querySelector('.face'), a.faces, i % 8, 0, 32, 48, 256, 96, 40));
+  document.querySelectorAll('#roster .who').forEach((w, i) => sprite(w.querySelector('.face'), a.faces, i % 8, 0, 32, 48, 256, 96, 46));
   document.querySelectorAll('#cardGrid .card').forEach((c, n) => {
     const sheet = a.cards && a.cards[Math.floor(n / 11)];
     const k = n % 11;

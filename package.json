@@ -1,7 +1,7 @@
 {
   "name": "psx-rando-hub",
   "productName": "PSX Rando Hub",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Desktop PlayStation hub: built-in emulator, auto-tracker and seed generator. First game: Castlevania: Symphony of the Night.",
   "main": "src/main.js",
   "scripts": {
