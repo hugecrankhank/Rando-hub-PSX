@@ -174,4 +174,4 @@ function validate(d) {
   return { ok: n >= 100 && bad <= Math.max(2, n * 0.03), problems };
 }
 
-module.exports = { load, validate, decode, findImg, INFO, INFO_SIZE, MAGIC_MAX, ITEM_MAX, COOKED };
+module.exports = { load, validate, decode, findImg, INFO, INFO_SIZE, MAGIC_MAX, ITEM_MAX, COOKED, get itemNamesFound() { return itemNames.found; } };
