@@ -30,6 +30,9 @@ const ITEM_MAX = 198;
 const CH = new Map([[0x20, ' ']]);
 '0123456789%/:!?…+-=*&「」()·.,~“”‘#$\'_'.split('').forEach((c, i) => CH.set(0x21 + i, c));
 for (let i = 0; i < 26; i++) { CH.set(0x45 + i, String.fromCharCode(65 + i)); CH.set(0x5f + i, String.fromCharCode(97 + i)); }
+// Common letter pairs packed into one byte (checked against the item descriptions: "Dam<ag><e ><on><e >e<ne>my").
+['in', 'e ', 'ne', 'to', 're', 'HP', 'l ', 'll', 'GF', 'nt', 'il', 'o ', 'ef', 'on', ' w', ' r', 'wi', 'fi', 'EC', 's ', 'ar', 'FE', ' S', 'ag']
+  .forEach((pair, i) => CH.set(0xe8 + i, pair));
 function decode(buf, start, end) {
   let s = '';
   for (let p = start; p < end && buf[p] !== 0; p++) s += CH.has(buf[p]) ? CH.get(buf[p]) : '';
@@ -120,7 +123,8 @@ function itemNames(kern) {
     return null;
   };
   const battle = tryTable((n) => { const k = n.indexOf('Potion'); return k >= 0 && k <= 1 && n[k + 1] === 'Potion+'; });
-  const other = tryTable((n) => n.includes('Tent') && n.includes('Cottage') && n.length >= 100);
+  // (166 entries of name + description offsets: one name per item, not every other string)
+  const other = tryTable((n) => n.includes('Cottage') && n.length >= 140 && n.length <= 200);
   itemNames.found = { battle: battle && { d: battle.d, st: battle.st, t: battle.t, n: battle.names.length }, other: other && { d: other.d, st: other.st, t: other.t, n: other.names.length } };
   if (!battle || !other) return null;
   // Item 1 is Potion; the battle items run on from there, then the others.
