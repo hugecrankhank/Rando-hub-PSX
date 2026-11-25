@@ -98,27 +98,31 @@ function magicNames(kern) {
   return null;
 }
 
-// Item names (item ids 1-198), read from the kernel: battle items (section 7, 24-byte entries) then the others
-// (section 8, 4-byte entries), each starting with the name's offset in a text section. The text section is found
-// by content: it's the one where the first battle item reads "Potion" and the others include "Tent".
+// Item names (item ids 1-198), read from the kernel. Two data tables point (u16 name offsets) into two text
+// sections: battle items (Potion, Potion+, …) and the rest (… Tent, Cottage, …). Rather than trust section numbers,
+// every data section and entry size is tried, and a table is accepted only when its names read right.
 function itemNames(kern) {
-  const list = (secIdx, stride) => {
-    const d = kern.sec(secIdx);
-    return Array.from({ length: Math.floor(d.length / stride) }, (_, i) => d.readUInt16LE(stride * i));
-  };
-  const find = (offs, ok) => {
-    for (let t = 28; t < kern.count; t++) {
-      const ts = kern.sec(t);
-      if (!offs.every((o) => o === 0xffff || o < ts.length)) continue;
-      const names = offs.map((o) => (o === 0xffff ? '' : decode(ts, o, o + 32)));
-      if (ok(names)) return names;
+  const tryTable = (ok) => {
+    for (let d = 0; d < 31; d++) {
+      const ds = kern.sec(d);
+      for (let st = 2; st <= 32; st += 2) {
+        const count = Math.floor(ds.length / st);
+        if (count < 20 || ds.length % st) continue;
+        const offs = Array.from({ length: count }, (_, i) => ds.readUInt16LE(st * i));
+        for (let t = 31; t < kern.count; t++) {
+          const ts = kern.sec(t);
+          if (!offs.every((o) => o < ts.length)) continue;
+          const names = offs.map((o) => decode(ts, o, o + 32));
+          if (ok(names)) return { names, d, st, t };
+        }
+      }
     }
     return null;
   };
-  const battle = find(list(7, 24), (n) => n[0] === 'Potion');
-  const other = find(list(8, 4), (n) => n.includes('Tent') && n.includes('Cottage'));
+  const battle = tryTable((n) => n[0] === 'Potion' && n[1] === 'Potion+');
+  const other = tryTable((n) => n.includes('Tent') && n.includes('Cottage') && n.length >= 100);
   if (!battle || !other) return null;
-  return ['', ...battle, ...other];
+  return ['', ...battle.names, ...other.names];
 }
 
 function readEnemy(disc, e) {
